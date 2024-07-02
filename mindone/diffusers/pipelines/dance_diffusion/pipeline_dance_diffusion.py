@@ -15,6 +15,8 @@
 
 from typing import List, Optional, Tuple, Union
 
+import numpy as np
+
 from ...utils import logging
 from ...utils.mindspore_utils import randn_tensor
 from ..pipeline_utils import AudioPipelineOutput, DiffusionPipeline
@@ -129,18 +131,18 @@ class DanceDiffusionPipeline(DiffusionPipeline):
                 f" size of {batch_size}. Make sure the batch size matches the length of the generators."
             )
 
-        audio = randn_tensor(shape, generator=generator, device=self._execution_device, dtype=dtype)
+        audio = randn_tensor(shape, generator=generator, dtype=dtype)
 
         # set step values
-        self.scheduler.set_timesteps(num_inference_steps, device=audio.device)
+        self.scheduler.set_timesteps(num_inference_steps)
         self.scheduler.timesteps = self.scheduler.timesteps.to(dtype)
 
         for t in self.progress_bar(self.scheduler.timesteps):
             # 1. predict noise model_output
-            model_output = self.unet(audio, t).sample
+            model_output = self.unet(audio, t)[0]
 
             # 2. compute previous audio sample: x_t -> t_t-1
-            audio = self.scheduler.step(model_output, t, audio).prev_sample
+            audio = self.scheduler.step(model_output, t, audio)[0]
 
         audio = audio.clamp(-1, 1).asnumpy()
 
