@@ -90,7 +90,7 @@ class AudioPipelineOutput(BaseOutput):
 
     audios: np.ndarray
 
-    
+
 class DiffusionPipeline(ConfigMixin, PushToHubMixin):
     r"""
     Base class for all pipelines.

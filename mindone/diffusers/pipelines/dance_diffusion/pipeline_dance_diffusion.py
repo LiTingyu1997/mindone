@@ -21,12 +21,11 @@ from ...utils import logging
 from ...utils.mindspore_utils import randn_tensor
 from ..pipeline_utils import AudioPipelineOutput, DiffusionPipeline
 
-
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 
 class DanceDiffusionPipeline(DiffusionPipeline):
-    r""" 
+    r"""
     Pipeline for audio generation.
 
     This model inherits from [`DiffusionPipeline`]. Check the superclass documentation for the generic methods
@@ -64,7 +63,7 @@ class DanceDiffusionPipeline(DiffusionPipeline):
                 The number of denoising steps. More denoising steps usually lead to a higher-quality audio sample at
                 the expense of slower inference.
             generator (`np.random.Generator`, *optional*):
-                A [`tornp.randomch.Generator`](https://numpy.org/doc/stable/reference/random/generator.html) to make
+                A [`np.random.Generator`](https://numpy.org/doc/stable/reference/random/generator.html) to make
                 generation deterministic.
             audio_length_in_s (`float`, *optional*, defaults to `self.unet.config.sample_size/self.unet.config.sample_rate`):
                 The length of the generated audio sample in seconds.
@@ -76,15 +75,16 @@ class DanceDiffusionPipeline(DiffusionPipeline):
         ```py
         from minone.diffusers import DiffusionPipeline
         from scipy.io.wavfile import write
+        import mindspore as ms
 
         model_id = "harmonai/maestro-150k"
-        pipe = DiffusionPipeline.from_pretrained(model_id)
+        pipe = DiffusionPipeline.from_pretrained(model_id, revision="refs/pr/3", mindspore_dtype=ms.float16)
 
-        audios = pipe(audio_length_in_s=4.0).audios
+        audios = pipe(audio_length_in_s=4.0)[0]
 
         # To save locally
         for i, audio in enumerate(audios):
-            write(f"maestro_test_{i}.wav", pipe.unet.sample_rate, audio.transpose())
+            write(f"maestro_test_{i}.wav", pipe.unet.config.sample_rate, audio.transpose())
 
         # To dislay in google colab
         import IPython.display as ipd
