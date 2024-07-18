@@ -64,7 +64,7 @@ class DanceDiffusionPipeline(DiffusionPipeline):
                 The number of denoising steps. More denoising steps usually lead to a higher-quality audio sample at
                 the expense of slower inference.
             generator (`np.random.Generator`, *optional*):
-                A [`tornp.randomch.Generator`](https://numpy.org/doc/stable/reference/random/generator.html) to make
+                A [`np.random.Generator`](https://numpy.org/doc/stable/reference/random/generator.html) to make
                 generation deterministic.
             audio_length_in_s (`float`, *optional*, defaults to `self.unet.config.sample_size/self.unet.config.sample_rate`):
                 The length of the generated audio sample in seconds.
@@ -74,23 +74,23 @@ class DanceDiffusionPipeline(DiffusionPipeline):
         Example:
 
         ```py
-        from minone.diffusers import DiffusionPipeline
+        from mindone.diffusers import DiffusionPipeline
         from scipy.io.wavfile import write
 
         model_id = "harmonai/maestro-150k"
         pipe = DiffusionPipeline.from_pretrained(model_id)
 
-        audios = pipe(audio_length_in_s=4.0).audios
+        audios = pipe(audio_length_in_s=4.0)[0]
 
         # To save locally
         for i, audio in enumerate(audios):
-            write(f"maestro_test_{i}.wav", pipe.unet.sample_rate, audio.transpose())
+            write(f"maestro_test_{i}.wav", pipe.unet.config.sample_rate, audio.transpose())
 
         # To dislay in google colab
         import IPython.display as ipd
 
         for audio in audios:
-            display(ipd.Audio(audio, rate=pipe.unet.sample_rate))
+            display(ipd.Audio(audio, rate=pipe.unet.config.sample_rate))
         ```
 
         Returns:
@@ -123,7 +123,7 @@ class DanceDiffusionPipeline(DiffusionPipeline):
             )
         sample_size = int(sample_size)
 
-        dtype = next(self.unet.parameters()).dtype
+        dtype = next(self.unet.get_parameters()).dtype
         shape = (batch_size, self.unet.config.in_channels, sample_size)
         if isinstance(generator, list) and len(generator) != batch_size:
             raise ValueError(
@@ -144,7 +144,7 @@ class DanceDiffusionPipeline(DiffusionPipeline):
             # 2. compute previous audio sample: x_t -> t_t-1
             audio = self.scheduler.step(model_output, t, audio)[0]
 
-        audio = audio.clamp(-1, 1).asnumpy()
+        audio = audio.clamp(-1, 1).float().numpy()
 
         audio = audio[:, :, :original_sample_size]
 
