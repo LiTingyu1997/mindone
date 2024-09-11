@@ -116,5 +116,5 @@ def _compute_diffs(pt_outputs: torch.Tensor, ms_outputs: ms.Tensor):
 
 
 if __name__ == "__main__":
-    model_path = "/home/pingqi/.cache/huggingface/hub/models--facebook--hubert-large-ls960-ft/snapshots/ece5fabbf034c1073acae96d5401b25be96709d8"
+    model_path = "openai/whisper-large"
     test_hubert(model_name=model_path, mode=0, dtype="fp32")
