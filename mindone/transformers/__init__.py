@@ -44,4 +44,11 @@ from .models.t5 import (
     T5Model,
     T5PreTrainedModel,
 )
+from .models.whisper import (
+    WhisperForCausalLM,
+    WhisperForConditionalGeneration,
+    WhisperModel,
+    WhisperPreTrainedModel,
+    WhisperForAudioClassification,
+)
 from .models.xlm_roberta import XLMRobertaModel, XLMRobertaPreTrainedModel
