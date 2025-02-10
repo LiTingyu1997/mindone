@@ -39,7 +39,7 @@ logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 EXAMPLE_DOC_STRING = """
     Examples:
         ```py
-        >>> from diffusers import MusicLDMPipeline
+        >>> from mindone.diffusers import MusicLDMPipeline
         >>> import mindspore as ms
         >>> import scipy
 

@@ -24,7 +24,7 @@ from mindspore import ops
 from ...audio_utils import mel_filter_bank, spectrogram, window_function
 from transformers.feature_extraction_sequence_utils import SequenceFeatureExtractor
 from transformers.feature_extraction_utils import BatchFeature
-from ...utils import TensorType, logging
+from transformers.utils import logging
 
 
 logger = logging.get_logger(__name__)
@@ -263,7 +263,7 @@ class ClapFeatureExtractor(SequenceFeatureExtractor):
         padding: Optional[str] = None,
         max_length: Optional[int] = None,
         sampling_rate: Optional[int] = None,
-        return_tensors: Optional[Union[str, TensorType]] = None,
+        return_tensors: Optional[Union[str, ms.Tensor]] = None,
         **kwargs,
     ) -> BatchFeature:
         """
@@ -286,7 +286,7 @@ class ClapFeatureExtractor(SequenceFeatureExtractor):
                     - `repeatpad`: the audio is repeated, and then padded to fit the `max_length`.
                     - `repeat`: the audio is repeated and then cut to fit the `max_length`
                     - `pad`: the audio is padded.
-            return_tensors (`str` or [`~utils.TensorType`], *optional*):
+            return_tensors (`str` or [`~utils.ms.Tensor`], *optional*):
                 If set, will return tensors instead of list of python integers. Acceptable values are:
 
                 - `'tf'`: Return TensorFlow `tf.constant` objects.

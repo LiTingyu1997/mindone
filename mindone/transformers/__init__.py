@@ -53,6 +53,14 @@ from .models.mt5 import (
     MT5Model,
     MT5PreTrainedModel,
 )
+from .models.speecht5 import (
+    SpeechT5ForSpeechToSpeech,
+    SpeechT5ForSpeechToText,
+    SpeechT5ForTextToSpeech,
+    SpeechT5HifiGan,
+    SpeechT5Model,
+    SpeechT5PreTrainedModel,
+)
 from .models.t5 import (
     T5_PRETRAINED_MODEL_ARCHIVE_LIST,
     T5EncoderModel,
