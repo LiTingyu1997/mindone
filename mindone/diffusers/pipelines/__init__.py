@@ -96,6 +96,7 @@ _import_structure = {
         "MarigoldDepthPipeline",
         "MarigoldNormalsPipeline",
     ],
+    "musicldm": ["MusicLDMPipeline"],
     "pag": [
         "AnimateDiffPAGPipeline",
         "KolorsPAGPipeline",
@@ -232,6 +233,7 @@ if TYPE_CHECKING:
     from .latte import LattePipeline
     from .lumina import LuminaText2ImgPipeline
     from .marigold import MarigoldDepthPipeline, MarigoldNormalsPipeline
+    from .musicldm import MusicLDMPipeline
     from .pag import (
         AnimateDiffPAGPipeline,
         HunyuanDiTPAGPipeline,

@@ -20,6 +20,15 @@ from .models.blip_2 import (
     Blip2QFormerModel,
     Blip2VisionModel,
 )
+from .models.clap import (
+    ClapAudioModel,
+    ClapAudioModelWithProjection,
+    ClapFeatureExtractor,
+    ClapModel,
+    ClapPreTrainedModel,
+    ClapTextModel,
+    ClapTextModelWithProjection,
+)
 from .models.clip import (
     CLIP_PRETRAINED_MODEL_ARCHIVE_LIST,
     CLIPModel,
