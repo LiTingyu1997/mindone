@@ -257,7 +257,7 @@ class SpeechT5NoLayerNormConvLayer(nn.Cell):
         )
         self.activation = ACT2FN[config.feat_extract_activation]
 
-    def forward(self, hidden_states):
+    def construct(self, hidden_states):
         hidden_states = self.conv(hidden_states)
         hidden_states = self.activation(hidden_states)
         return hidden_states
@@ -280,7 +280,7 @@ class SpeechT5LayerNormConvLayer(nn.Cell):
         self.layer_norm = nn.LayerNorm(self.out_conv_dim, elementwise_affine=True)
         self.activation = ACT2FN[config.feat_extract_activation]
 
-    def forward(self, hidden_states):
+    def construct(self, hidden_states):
         hidden_states = self.conv(hidden_states)
 
         hidden_states = hidden_states.transpose(-2, -1)
@@ -309,7 +309,7 @@ class SpeechT5GroupNormConvLayer(nn.Cell):
 
         self.layer_norm = nn.GroupNorm(num_groups=self.out_conv_dim, num_channels=self.out_conv_dim, affine=True)
 
-    def forward(self, hidden_states):
+    def construct(self, hidden_states):
         hidden_states = self.conv(hidden_states)
         hidden_states = self.layer_norm(hidden_states)
         hidden_states = self.activation(hidden_states)
@@ -356,7 +356,7 @@ class SpeechT5SinusoidalPositionalEmbedding(nn.Cell):
         return emb
 
      
-    def forward(self, input_ids: ms.Tensor, past_key_values_length: int = 0):
+    def construct(self, input_ids: ms.Tensor, past_key_values_length: int = 0):
         bsz, seq_len = input_ids.size()
         # Create the position ids from the input token ids. Any padded tokens remain padded.
         position_ids = self.create_position_ids_from_input_ids(input_ids, self.padding_idx, past_key_values_length)
@@ -408,7 +408,7 @@ class SpeechT5PositionalConvEmbedding(nn.Cell):
         self.padding = SpeechT5SamePadLayer(config.num_conv_pos_embeddings)
         self.activation = ACT2FN[config.feat_extract_activation]
 
-    def forward(self, hidden_states):
+    def construct(self, hidden_states):
         hidden_states = hidden_states.transpose(1, 2)
 
         hidden_states = self.conv(hidden_states)
@@ -432,12 +432,12 @@ class SpeechT5ScaledPositionalEncoding(nn.Cell):
         pe[:, 1::2] = ops.cos(position.float() * div_term)
         pe = pe.unsqueeze(0)
         super().__init__()
-        self.register_buffer("pe", pe, persistent=False)
+        self.pe = pe
         self.dropout = nn.Dropout(p=dropout)
         self.dim = dim
         self.alpha = Parameter(ms.Tensor(1.0))
 
-    def forward(self, emb):
+    def construct(self, emb):
         emb = emb + self.alpha * self.pe[:, : emb.size(1)]
         emb = self.dropout(emb)
         return emb
@@ -450,7 +450,7 @@ class SpeechT5RelativePositionalEncoding(nn.Cell):
         self.max_length = max_length
         self.pe_k = nn.Embedding(2 * max_length, dim)
 
-    def forward(self, hidden_states):
+    def construct(self, hidden_states):
         seq_len = hidden_states.shape[1]
         pos_seq = ops.arange(0, seq_len).long()
         pos_seq = pos_seq[:, None] - pos_seq[None, :]
@@ -468,7 +468,7 @@ class SpeechT5SamePadLayer(nn.Cell):
         super().__init__()
         self.num_pad_remove = 1 if num_conv_pos_embeddings % 2 == 0 else 0
 
-    def forward(self, hidden_states):
+    def construct(self, hidden_states):
         if self.num_pad_remove > 0:
             hidden_states = hidden_states[:, :, : -self.num_pad_remove]
         return hidden_states
@@ -502,7 +502,7 @@ class SpeechT5FeatureEncoder(nn.Cell):
             param.requires_grad = False
         self._requires_grad = False
 
-    def forward(self, input_values):
+    def construct(self, input_values):
         hidden_states = input_values[:, None]
 
         # make sure hidden_states require grad for gradient_checkpointing
@@ -529,7 +529,7 @@ class SpeechT5FeatureProjection(nn.Cell):
         self.projection = nn.Dense(config.conv_dim[-1], config.hidden_size)
         self.dropout = nn.Dropout(config.feat_proj_dropout)
 
-    def forward(self, hidden_states):
+    def construct(self, hidden_states):
         # non-projected hidden states are needed for quantization
         norm_hidden_states = self.layer_norm(hidden_states)
         hidden_states = self.projection(norm_hidden_states)
@@ -558,7 +558,7 @@ class SpeechT5SpeechEncoderPrenet(nn.Cell):
     def freeze_feature_encoder(self):
         self.feature_encoder._freeze_parameters()
 
-    def forward(
+    def construct(
         self,
         input_values: ms.Tensor,
         attention_mask: Optional[ms.Tensor] = None,
@@ -699,7 +699,7 @@ class SpeechT5SpeechDecoderPrenet(nn.Cell):
         all_masks = mask.unsqueeze(0).repeat(inputs_embeds.size(0), 1, 1)
         return ops.where(all_masks == 1, inputs_embeds, 0) * 1 / (1 - p)
 
-    def forward(
+    def construct(
         self,
         input_values: ms.Tensor,
         speaker_embeddings: Optional[ms.Tensor] = None,
@@ -756,7 +756,7 @@ class SpeechT5BatchNormConvLayer(nn.Cell):
 
         self.dropout = nn.Dropout(config.speech_decoder_postnet_dropout)
 
-    def forward(self, hidden_states):
+    def construct(self, hidden_states):
         hidden_states = self.conv(hidden_states)
         hidden_states = self.batch_norm(hidden_states)
         if self.activation is not None:
@@ -777,7 +777,7 @@ class SpeechT5SpeechDecoderPostnet(nn.Cell):
             [SpeechT5BatchNormConvLayer(config, i) for i in range(config.speech_decoder_postnet_layers)]
         )
 
-    def forward(self, hidden_states: ms.Tensor):
+    def construct(self, hidden_states: ms.Tensor):
         outputs_before_postnet = self.feat_out(hidden_states).view(hidden_states.size(0), -1, self.config.num_mel_bins)
         outputs_after_postnet = self.postnet(outputs_before_postnet)
         logits = self.prob_out(hidden_states).view(hidden_states.size(0), -1)
@@ -807,7 +807,7 @@ class SpeechT5TextEncoderPrenet(nn.Cell):
     def set_input_embeddings(self, value):
         self.embed_tokens = value
 
-    def forward(self, input_ids: ms.Tensor):
+    def construct(self, input_ids: ms.Tensor):
         inputs_embeds = self.embed_tokens(input_ids)
         inputs_embeds = self.encode_positions(inputs_embeds)
         return inputs_embeds
@@ -834,7 +834,7 @@ class SpeechT5TextDecoderPrenet(nn.Cell):
     def set_input_embeddings(self, value):
         self.embed_tokens = value
 
-    def forward(
+    def construct(
         self,
         input_ids: ms.Tensor,
         attention_mask: Optional[ms.Tensor] = None,
@@ -862,7 +862,7 @@ class SpeechT5TextDecoderPostnet(nn.Cell):
         self.config = config
         self.lm_head = nn.Dense(config.hidden_size, config.vocab_size, bias=False)
 
-    def forward(self, hidden_states: ms.Tensor):
+    def construct(self, hidden_states: ms.Tensor):
         return self.lm_head(hidden_states)
 
     def get_output_embeddings(self):
@@ -908,7 +908,7 @@ class SpeechT5Attention(nn.Cell):
     def _shape(self, tensor: ms.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
 
-    def forward(
+    def construct(
         self,
         hidden_states: ms.Tensor,
         key_value_states: Optional[ms.Tensor] = None,
@@ -1046,7 +1046,7 @@ class SpeechT5FeedForward(nn.Cell):
         self.output_dense = nn.Dense(intermediate_size, config.hidden_size)
         self.output_dropout = nn.Dropout(config.hidden_dropout)
 
-    def forward(self, hidden_states):
+    def construct(self, hidden_states):
         hidden_states = self.intermediate_dense(hidden_states)
         hidden_states = self.intermediate_act_fn(hidden_states)
         hidden_states = self.intermediate_dropout(hidden_states)
@@ -1070,7 +1070,7 @@ class SpeechT5EncoderLayer(nn.Cell):
         self.feed_forward = SpeechT5FeedForward(config, config.encoder_ffn_dim)
         self.final_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
-    def forward(
+    def construct(
         self,
         hidden_states: ms.Tensor,
         attention_mask: Optional[ms.Tensor] = None,
@@ -1140,7 +1140,7 @@ class SpeechT5DecoderLayer(nn.Cell):
         self.feed_forward = SpeechT5FeedForward(config, config.decoder_ffn_dim)
         self.final_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
-    def forward(
+    def construct(
         self,
         hidden_states: ms.Tensor,
         attention_mask: Optional[ms.Tensor] = None,
@@ -1299,7 +1299,7 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
-    def forward(
+    def construct(
         self,
         hidden_states: ms.Tensor,
         attention_mask: Optional[ms.Tensor] = None,
@@ -1428,7 +1428,7 @@ class SpeechT5EncoderWithSpeechPrenet(SpeechT5PreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
-    def forward(
+    def construct(
         self,
         input_values: ms.Tensor,
         attention_mask: Optional[ms.Tensor] = None,
@@ -1470,7 +1470,7 @@ class SpeechT5EncoderWithTextPrenet(SpeechT5PreTrainedModel):
     def set_input_embeddings(self, value):
         self.prenet.set_input_embeddings(value)
 
-    def forward(
+    def construct(
         self,
         input_values: ms.Tensor,
         attention_mask: Optional[ms.Tensor] = None,
@@ -1506,7 +1506,7 @@ class SpeechT5EncoderWithoutPrenet(SpeechT5PreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
-    def forward(
+    def construct(
         self,
         input_values: ms.Tensor,
         attention_mask: Optional[ms.Tensor] = None,
@@ -1541,7 +1541,7 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
-    def forward(
+    def construct(
         self,
         hidden_states: Optional[ms.Tensor] = None,
         attention_mask: Optional[ms.Tensor] = None,
@@ -1746,7 +1746,7 @@ class SpeechT5DecoderWithSpeechPrenet(SpeechT5PreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
-    def forward(
+    def construct(
         self,
         input_values: Optional[ms.Tensor] = None,
         attention_mask: Optional[ms.Tensor] = None,
@@ -1799,7 +1799,7 @@ class SpeechT5DecoderWithTextPrenet(SpeechT5PreTrainedModel):
     def set_input_embeddings(self, value):
         self.prenet.set_input_embeddings(value)
 
-    def forward(
+    def construct(
         self,
         input_values: Optional[ms.Tensor] = None,
         attention_mask: Optional[ms.Tensor] = None,
@@ -1845,7 +1845,7 @@ class SpeechT5DecoderWithoutPrenet(SpeechT5PreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
-    def forward(
+    def construct(
         self,
         input_values: Optional[ms.Tensor] = None,
         attention_mask: Optional[ms.Tensor] = None,
@@ -1886,7 +1886,7 @@ class SpeechT5GuidedMultiheadAttentionLoss(nn.Cell):
         self.sigma = config.guided_attention_loss_sigma
         self.scale = config.guided_attention_loss_scale
 
-    def forward(
+    def construct(
         self, attentions: ms.Tensor, input_masks: ops.Tensor, output_masks: ops.Tensor
     ) -> ms.Tensor:
         """
@@ -1951,7 +1951,7 @@ class SpeechT5SpectrogramLoss(nn.Cell):
         if self.use_guided_attention_loss:
             self.attn_criterion = SpeechT5GuidedMultiheadAttentionLoss(config)
 
-    def forward(
+    def construct(
         self,
         attention_mask: ms.Tensor,
         outputs_before_postnet: ms.Tensor,
@@ -2163,7 +2163,7 @@ class SpeechT5Model(SpeechT5PreTrainedModel):
         if isinstance(self.encoder, SpeechT5EncoderWithSpeechPrenet):
             self.encoder.prenet.freeze_feature_encoder()
 
-    def forward(
+    def construct(
         self,
         input_values: Optional[ms.Tensor] = None,
         attention_mask: Optional[ms.Tensor] = None,
@@ -2305,7 +2305,7 @@ class SpeechT5ForSpeechToText(SpeechT5PreTrainedModel):
     def set_output_embeddings(self, new_embeddings):
         self.text_decoder_postnet.set_output_embeddings(new_embeddings)
 
-    def forward(
+    def construct(
         self,
         input_values: Optional[ms.Tensor] = None,
         attention_mask: Optional[ms.Tensor] = None,
@@ -2650,7 +2650,7 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
     def get_decoder(self):
         return self.speecht5.get_decoder()
 
-    def forward(
+    def construct(
         self,
         input_ids: Optional[ms.Tensor] = None,
         attention_mask: Optional[ms.Tensor] = None,
@@ -2985,7 +2985,7 @@ class SpeechT5ForSpeechToSpeech(SpeechT5PreTrainedModel):
         """
         self.get_encoder().prenet.freeze_feature_encoder()
 
-    def forward(
+    def construct(
         self,
         input_values: Optional[ms.Tensor] = None,
         attention_mask: Optional[ms.Tensor] = None,
@@ -3257,7 +3257,7 @@ class HifiGanResidualBlock(nn.Cell):
         for layer in self.convs2:
             nn.utils.remove_weight_norm(layer)
 
-    def forward(self, hidden_states):
+    def construct(self, hidden_states):
         for conv1, conv2 in zip(self.convs1, self.convs2):
             residual = hidden_states
             hidden_states = nn.functional.leaky_relu(hidden_states, self.leaky_relu_slope)
@@ -3308,8 +3308,8 @@ class SpeechT5HifiGan(MSPreTrainedModel):
 
         self.conv_post = nn.Conv1d(channels, 1, kernel_size=7, stride=1, pad_mode="pad", padding=3, has_bias=True)
 
-        self.register_buffer("mean", ops.zeros(config.model_in_dim))
-        self.register_buffer("scale", ops.ones(config.model_in_dim))
+        self.mean = ops.zeros(config.model_in_dim)
+        self.scale = ops.ones(config.model_in_dim)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -3337,7 +3337,7 @@ class SpeechT5HifiGan(MSPreTrainedModel):
             layer.remove_weight_norm()
         nn.utils.remove_weight_norm(self.conv_post)
 
-    def forward(self, spectrogram: ms.Tensor) -> ms.Tensor:
+    def construct(self, spectrogram: ms.Tensor) -> ms.Tensor:
         r"""
         Converts a log-mel spectrogram into a speech waveform. Passing a batch of log-mel spectrograms returns a batch
         of speech waveforms. Passing a single, un-batched log-mel spectrogram returns a single, un-batched speech

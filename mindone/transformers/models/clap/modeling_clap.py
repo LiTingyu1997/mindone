@@ -415,7 +415,7 @@ class ClapAudioSelfAttention(nn.Cell):
         relative_coords[:, :, 1] += self.window_size[1] - 1
         relative_coords[:, :, 0] *= 2 * self.window_size[1] - 1
         relative_position_index = relative_coords.sum(-1)
-        self.register_buffer("relative_position_index", relative_position_index)
+        self.relative_position_index = relative_position_index
 
         self.query = nn.Dense(self.all_head_size, self.all_head_size, has_bias=config.qkv_bias)
         self.key = nn.Dense(self.all_head_size, self.all_head_size, has_bias=config.qkv_bias)
@@ -1048,12 +1048,8 @@ class ClapTextEmbeddings(nn.Cell):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         # position_ids (1, len position emb) is contiguous in memory and exported when serialized
         self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
-        self.register_buffer(
-            "position_ids", ops.arange(config.max_position_embeddings).expand((1, -1)), persistent=True
-        )
-        self.register_buffer(
-            "token_type_ids", ops.zeros(self.position_ids.size(), dtype=ms.int64), persistent=True
-        )
+        self.position_ids = ops.arange(config.max_position_embeddings).expand((1, -1))
+        self.token_type_ids = ops.zeros(self.position_ids.size(), dtype=ms.int64)
 
         # End copy
         self.padding_idx = config.pad_token_id
