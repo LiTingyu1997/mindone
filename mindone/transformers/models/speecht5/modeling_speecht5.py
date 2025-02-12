@@ -277,7 +277,7 @@ class SpeechT5LayerNormConvLayer(nn.Cell):
             stride=config.conv_stride[layer_id],
             has_bias=config.conv_bias,
         )
-        self.layer_norm = nn.LayerNorm((self.out_conv_dim), epsilon=1e-5)
+        self.layer_norm = nn.LayerNorm((self.out_conv_dim, ), epsilon=1e-5)
         self.activation = ACT2FN[config.feat_extract_activation]
 
     def construct(self, hidden_states):
@@ -525,7 +525,7 @@ class SpeechT5FeatureEncoder(nn.Cell):
 class SpeechT5FeatureProjection(nn.Cell):
     def __init__(self, config):
         super().__init__()
-        self.layer_norm = nn.LayerNorm((config.conv_dim[-1]), epsilon=config.layer_norm_eps)
+        self.layer_norm = nn.LayerNorm((config.conv_dim[-1], ), epsilon=config.layer_norm_eps)
         self.projection = nn.Dense(config.conv_dim[-1], config.hidden_size)
         self.dropout = nn.Dropout(config.feat_proj_dropout)
 
@@ -1066,9 +1066,9 @@ class SpeechT5EncoderLayer(nn.Cell):
             is_decoder=False,
         )
         self.dropout = nn.Dropout(config.hidden_dropout)
-        self.layer_norm = nn.LayerNorm((config.hidden_size), epsilon=config.layer_norm_eps)
+        self.layer_norm = nn.LayerNorm((config.hidden_size, ), epsilon=config.layer_norm_eps)
         self.feed_forward = SpeechT5FeedForward(config, config.encoder_ffn_dim)
-        self.final_layer_norm = nn.LayerNorm((config.hidden_size), epsilon=config.layer_norm_eps)
+        self.final_layer_norm = nn.LayerNorm((config.hidden_size, ), epsilon=config.layer_norm_eps)
 
     def construct(
         self,
@@ -1127,7 +1127,7 @@ class SpeechT5DecoderLayer(nn.Cell):
             is_decoder=True,
         )
         self.dropout = nn.Dropout(config.hidden_dropout)
-        self.self_attn_layer_norm = nn.LayerNorm((config.hidden_size), epsilon=config.layer_norm_eps)
+        self.self_attn_layer_norm = nn.LayerNorm((config.hidden_size, ), epsilon=config.layer_norm_eps)
 
         self.encoder_attn = SpeechT5Attention(
             config.hidden_size,
@@ -1135,10 +1135,10 @@ class SpeechT5DecoderLayer(nn.Cell):
             dropout=config.attention_dropout,
             is_decoder=True,
         )
-        self.encoder_attn_layer_norm = nn.LayerNorm((config.hidden_size), epsilon=config.layer_norm_eps)
+        self.encoder_attn_layer_norm = nn.LayerNorm((config.hidden_size, ), epsilon=config.layer_norm_eps)
 
         self.feed_forward = SpeechT5FeedForward(config, config.decoder_ffn_dim)
-        self.final_layer_norm = nn.LayerNorm((config.hidden_size), epsilon=config.layer_norm_eps)
+        self.final_layer_norm = nn.LayerNorm((config.hidden_size, ), epsilon=config.layer_norm_eps)
 
     def construct(
         self,
@@ -1284,7 +1284,7 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
 
     def __init__(self, config: SpeechT5Config):
         super().__init__(config)
-        self.layer_norm = nn.LayerNorm((config.hidden_size), epsilon=config.layer_norm_eps)
+        self.layer_norm = nn.LayerNorm((config.hidden_size, ), epsilon=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout)
         self.layerdrop = config.encoder_layerdrop
 
