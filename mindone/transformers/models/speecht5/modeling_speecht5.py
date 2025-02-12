@@ -3317,9 +3317,11 @@ class SpeechT5HifiGan(MSPreTrainedModel):
     def _init_weights(self, module):
         """Initialize the weights."""
         if isinstance(module, (nn.Dense, nn.Conv1d)):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            module.weight.set_data(
+                initializer(Normal(mean=0.0, sigma=self.config.initializer_range)), shape=module.weight.shape, dtype=module.weight.dtype
+            )
             if module.bias is not None:
-                module.bias.data.zero_()
+                module.bias.set_data(initializer(Zero(), shape=module.bias.shape, dtype=module.bias.dtype))
 
     def apply_weight_norm(self):
         nn.utils.weight_norm(self.conv_pre)
