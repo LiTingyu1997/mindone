@@ -22,6 +22,7 @@ import mindspore as ms
 from mindspore import nn, ops, Parameter
 from mindspore.common.initializer import Normal, Uniform, HeUniform, Constant, One, Zero, initializer
 from mindspore.nn import BCEWithLogitsLoss, CrossEntropyLoss, L1Loss
+from ....diffusers.models.normalization import LayerNorm
 
 from ...activations import ACT2FN
 from ...modeling_attn_mask_utils import _prepare_4d_attention_mask, _prepare_4d_causal_attention_mask
@@ -277,7 +278,7 @@ class SpeechT5LayerNormConvLayer(nn.Cell):
             stride=config.conv_stride[layer_id],
             has_bias=config.conv_bias,
         )
-        self.layer_norm = nn.LayerNorm((self.out_conv_dim, ), epsilon=1e-5)
+        self.layer_norm = LayerNorm(self.out_conv_dim, eps=1e-5)
         self.activation = ACT2FN[config.feat_extract_activation]
 
     def construct(self, hidden_states):
@@ -525,7 +526,7 @@ class SpeechT5FeatureEncoder(nn.Cell):
 class SpeechT5FeatureProjection(nn.Cell):
     def __init__(self, config):
         super().__init__()
-        self.layer_norm = nn.LayerNorm((config.conv_dim[-1], ), epsilon=config.layer_norm_eps)
+        self.layer_norm = LayerNorm(config.conv_dim[-1], eps=config.layer_norm_eps)
         self.projection = nn.Dense(config.conv_dim[-1], config.hidden_size)
         self.dropout = nn.Dropout(config.feat_proj_dropout)
 
@@ -715,7 +716,7 @@ class SpeechT5SpeechDecoderPrenet(nn.Cell):
         inputs_embeds = self.encode_positions(inputs_embeds)
 
         if speaker_embeddings is not None:
-            normalize = ops.L2Normalize(axis=1, epsilon=1e-12)
+            normalize = ops.L2Normalize(axis=1, eps=1e-12)
             speaker_embeddings = normalize(speaker_embeddings)
             speaker_embeddings = speaker_embeddings.unsqueeze(1).expand(-1, inputs_embeds.size(1), -1)
             inputs_embeds = ops.cat([inputs_embeds, speaker_embeddings], axis=-1)
@@ -1066,9 +1067,9 @@ class SpeechT5EncoderLayer(nn.Cell):
             is_decoder=False,
         )
         self.dropout = nn.Dropout(config.hidden_dropout)
-        self.layer_norm = nn.LayerNorm((config.hidden_size, ), epsilon=config.layer_norm_eps)
+        self.layer_norm = LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.feed_forward = SpeechT5FeedForward(config, config.encoder_ffn_dim)
-        self.final_layer_norm = nn.LayerNorm((config.hidden_size, ), epsilon=config.layer_norm_eps)
+        self.final_layer_norm = LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
     def construct(
         self,
@@ -1127,7 +1128,7 @@ class SpeechT5DecoderLayer(nn.Cell):
             is_decoder=True,
         )
         self.dropout = nn.Dropout(config.hidden_dropout)
-        self.self_attn_layer_norm = nn.LayerNorm((config.hidden_size, ), epsilon=config.layer_norm_eps)
+        self.self_attn_layer_norm = LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
         self.encoder_attn = SpeechT5Attention(
             config.hidden_size,
@@ -1135,10 +1136,10 @@ class SpeechT5DecoderLayer(nn.Cell):
             dropout=config.attention_dropout,
             is_decoder=True,
         )
-        self.encoder_attn_layer_norm = nn.LayerNorm((config.hidden_size, ), epsilon=config.layer_norm_eps)
+        self.encoder_attn_layer_norm = LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
         self.feed_forward = SpeechT5FeedForward(config, config.decoder_ffn_dim)
-        self.final_layer_norm = nn.LayerNorm((config.hidden_size, ), epsilon=config.layer_norm_eps)
+        self.final_layer_norm = LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
     def construct(
         self,
@@ -1259,7 +1260,7 @@ class SpeechT5PreTrainedModel(MSPreTrainedModel):
             )
             if module.bias is not None:
                 module.bias.set_data(initializer(Zero(), shape=module.bias.shape, dtype=module.bias.dtype))
-        elif isinstance(module, (nn.LayerNorm, nn.GroupNorm)):
+        elif isinstance(module, (LayerNorm, nn.GroupNorm)):
             module.bias.set_data(initializer(Zero(), shape=module.bias.shape, dtype=module.bias.dtype))
             module.weight.set_data(initializer(One(), shape=module.weight.shape, dtype=module.weight.dtype))
         elif isinstance(module, nn.Conv1d):
@@ -1270,12 +1271,15 @@ class SpeechT5PreTrainedModel(MSPreTrainedModel):
                 initializer(Uniform(k), shape=module.projection.bias.shape, dtype=module.projection.bias.dtype)
             )
         elif isinstance(module, nn.Embedding):
-            module.weight.set_data(
-                initializer(Normal(mean=0.0, sigma=self.config.initializer_range), shape=module.weight.shape, dtype=module.weight.dtype)
+            module.embedding_table.set_data(
+                initializer(
+                    Normal(sigma=self.config.initializer_range, mean=0.0),
+                    module.embedding_table.shape,
+                    module.embedding_table.dtype,
+                )
             )
             if module.padding_idx is not None:
-                module.weight[module.padding_idx].set_data(initializer(Zero(), shape=module.weight.shape, dtype=module.weight.dtype))
-
+                module.embedding_table[module.padding_idx] = 0
 
 class SpeechT5Encoder(SpeechT5PreTrainedModel):
     """
@@ -1284,7 +1288,7 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
 
     def __init__(self, config: SpeechT5Config):
         super().__init__(config)
-        self.layer_norm = nn.LayerNorm((config.hidden_size, ), epsilon=config.layer_norm_eps)
+        self.layer_norm = LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout)
         self.layerdrop = config.encoder_layerdrop
 

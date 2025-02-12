@@ -22,6 +22,7 @@ from typing import Any, List, Optional, Tuple, Union
 import mindspore as ms
 from mindspore import nn, ops, Parameter
 from mindspore.common.initializer import Normal, One, Zero, initializer
+from ....diffusers.models.normalization import LayerNorm
 
 from ...activations import ACT2FN
 from ...modeling_outputs import (
@@ -323,7 +324,7 @@ class ClapAudioPatchEmbed(nn.Cell):
             padding=padding,
         )
 
-        self.norm = nn.LayerNorm((config.patch_embeds_hidden_size, ), epsilon=1e-5) if config.enable_patch_layer_norm else nn.Identity()
+        self.norm = LayerNorm(config.patch_embeds_hidden_size) if config.enable_patch_layer_norm else nn.Identity()
         if self.enable_fusion:
             self.fusion_model = ClapAudioAFFBlock(config)
             self.mel_conv2d = nn.Conv2d(
@@ -575,10 +576,10 @@ class ClapAudioLayer(nn.Cell):
         self.shift_size = shift_size
         self.window_size = config.window_size
         self.input_resolution = input_resolution
-        self.layernorm_before = nn.LayerNorm((dim, ), epsilon=config.layer_norm_eps)
+        self.layernorm_before = LayerNorm(dim, eps=config.layer_norm_eps)
         self.attention = ClapAudioAttention(config, dim, num_heads, window_size=self.window_size)
         self.drop_path = ClapDropPath(config.drop_path_rate) if config.drop_path_rate > 0.0 else nn.Identity()
-        self.layernorm_after = nn.LayerNorm((dim, ), epsilon=config.layer_norm_eps)
+        self.layernorm_after = LayerNorm(dim, eps=config.layer_norm_eps)
         self.intermediate = ClapAudioIntermediate(config, dim)
         self.output = ClapAudioOutput(config, dim)
 
@@ -715,7 +716,7 @@ class ClapAudioStage(nn.Cell):
 
         # patch merging layer
         if downsample is not None:
-            self.downsample = downsample(input_resolution, dim=dim, norm_layer=nn.LayerNorm)
+            self.downsample = downsample(input_resolution, dim=dim, norm_layer=LayerNorm)
         else:
             self.downsample = None
 
@@ -768,7 +769,7 @@ class ClapAudioPatchMerging(nn.Cell):
             Normalization layer class.
     """
 
-    def __init__(self, input_resolution: Tuple[int], dim: int, norm_layer: nn.Cell = nn.LayerNorm) -> None:
+    def __init__(self, input_resolution: Tuple[int], dim: int, norm_layer: nn.Cell = LayerNorm) -> None:
         super().__init__()
         self.input_resolution = input_resolution
         self.dim = dim
@@ -846,7 +847,7 @@ class ClapAudioEncoder(nn.Cell):
         self.gradient_checkpointing = False
 
         self.batch_norm = nn.BatchNorm2d(config.num_mel_bins)
-        self.norm = nn.LayerNorm((self.num_features, ), epsilon=1e-5)
+        self.norm = LayerNorm(self.num_features, eps=1e-5)
         self.depths = config.depths
         self.avgpool = nn.AdaptiveAvgPool1d(1)
 
@@ -1044,12 +1045,12 @@ class ClapTextEmbeddings(nn.Cell):
 
         # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
         # any TensorFlow checkpoint file
-        self.LayerNorm = nn.LayerNorm((config.hidden_size, ), epsilon=config.layer_norm_eps)
+        self.LayerNorm = LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         # position_ids (1, len position emb) is contiguous in memory and exported when serialized
         self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
         self.position_ids = ops.arange(config.max_position_embeddings).expand((1, -1))
-        self.token_type_ids = ops.zeros(self.position_ids.size(), dtype=ms.int64)
+        self.token_type_ids = ops.zeros(self.position_ids.size, dtype=ms.int64)
 
         # End copy
         self.padding_idx = config.pad_token_id
@@ -1255,7 +1256,7 @@ class ClapTextSelfOutput(nn.Cell):
     def __init__(self, config):
         super().__init__()
         self.dense = nn.Dense(config.hidden_size, config.hidden_size)
-        self.LayerNorm = nn.LayerNorm((config.hidden_size, ), epsilon=config.layer_norm_eps)
+        self.LayerNorm = LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
     def construct(self, hidden_states: ms.Tensor, input_tensor: ms.Tensor) -> ms.Tensor:
@@ -1343,7 +1344,7 @@ class ClapTextOutput(nn.Cell):
     def __init__(self, config):
         super().__init__()
         self.dense = nn.Dense(config.intermediate_size, config.hidden_size)
-        self.LayerNorm = nn.LayerNorm((config.hidden_size, ), epsilon=config.layer_norm_eps)
+        self.LayerNorm = LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
     def construct(self, hidden_states: ms.Tensor, input_tensor: ms.Tensor) -> ms.Tensor:
@@ -1579,10 +1580,14 @@ class ClapPreTrainedModel(MSPreTrainedModel):
                 initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.weight.shape, dtype=module.weight.dtype)
             )
         elif isinstance(module, nn.Embedding):
-            module.weight.set_data(
-                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.weight.shape, dtype=module.weight.dtype)
-            )
-        elif isinstance(module, nn.LayerNorm):
+            module.embedding_table.set_data(
+                initializer(
+                    Normal(sigma=factor * 0.02), mean=0.0),
+                    module.embedding_table.shape,
+                    module.embedding_table.dtype,
+                )
+
+        elif isinstance(module, LayerNorm):
             module.bias.set_data(initializer(Zero(), shape=module.bias.shape, dtype=module.bias.dtype))
             module.weight.set_data(initializer(One(), shape=module.weight.shape, dtype=module.weight.dtype))
         elif isinstance(module, (nn.Conv2d, nn.Dense)):
