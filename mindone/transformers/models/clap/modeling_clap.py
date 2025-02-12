@@ -1582,11 +1582,11 @@ class ClapPreTrainedModel(MSPreTrainedModel):
         elif isinstance(module, nn.Embedding):
             module.embedding_table.set_data(
                 initializer(
-                    Normal(sigma=factor * 0.02), mean=0.0),
+                    Normal(sigma=factor * 0.02, mean=0.0),
                     module.embedding_table.shape,
                     module.embedding_table.dtype,
                 )
-
+            )
         elif isinstance(module, LayerNorm):
             module.bias.set_data(initializer(Zero(), shape=module.bias.shape, dtype=module.bias.dtype))
             module.weight.set_data(initializer(One(), shape=module.weight.shape, dtype=module.weight.dtype))
