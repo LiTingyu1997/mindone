@@ -20,7 +20,8 @@ from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple, Union
 
 import mindspore as ms
-from mindspore import nn, ops
+from mindspore import nn, ops, Parameter
+from mindspore.common.initializer import Normal, One, Zero, initializer
 
 from ...activations import ACT2FN
 from ...modeling_outputs import (
@@ -399,7 +400,7 @@ class ClapAudioSelfAttention(nn.Cell):
             window_size if isinstance(window_size, collections.abc.Iterable) else (window_size, window_size)
         )
 
-        self.relative_position_bias_table = nn.Parameter(
+        self.relative_position_bias_table = Parameter(
             ops.zeros((2 * self.window_size[0] - 1) * (2 * self.window_size[1] - 1), num_heads)
         )
 
@@ -416,9 +417,9 @@ class ClapAudioSelfAttention(nn.Cell):
         relative_position_index = relative_coords.sum(-1)
         self.register_buffer("relative_position_index", relative_position_index)
 
-        self.query = nn.Linear(self.all_head_size, self.all_head_size, bias=config.qkv_bias)
-        self.key = nn.Linear(self.all_head_size, self.all_head_size, bias=config.qkv_bias)
-        self.value = nn.Linear(self.all_head_size, self.all_head_size, bias=config.qkv_bias)
+        self.query = nn.Dense(self.all_head_size, self.all_head_size, has_bias=config.qkv_bias)
+        self.key = nn.Dense(self.all_head_size, self.all_head_size, has_bias=config.qkv_bias)
+        self.value = nn.Dense(self.all_head_size, self.all_head_size, has_bias=config.qkv_bias)
 
         self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
 
@@ -488,7 +489,7 @@ class ClapAudioSelfAttention(nn.Cell):
 class ClapAudioSelfOutput(nn.Cell):
     def __init__(self, config, dim):
         super().__init__()
-        self.dense = nn.Linear(dim, dim)
+        self.dense = nn.Dense(dim, dim)
         self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
 
     def construct(self, hidden_states: ms.Tensor, input_tensor: ms.Tensor) -> ms.Tensor:
@@ -541,7 +542,7 @@ class ClapAudioAttention(nn.Cell):
 class ClapAudioIntermediate(nn.Cell):
     def __init__(self, config, dim):
         super().__init__()
-        self.dense = nn.Linear(dim, int(config.mlp_ratio * dim))
+        self.dense = nn.Dense(dim, int(config.mlp_ratio * dim))
         if isinstance(config.hidden_act, str):
             self.intermediate_act_fn = ACT2FN[config.hidden_act]
         else:
@@ -557,7 +558,7 @@ class ClapAudioIntermediate(nn.Cell):
 class ClapAudioOutput(nn.Cell):
     def __init__(self, config, dim):
         super().__init__()
-        self.dense = nn.Linear(int(config.mlp_ratio * dim), dim)
+        self.dense = nn.Dense(int(config.mlp_ratio * dim), dim)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
     def construct(self, hidden_states: ms.Tensor) -> ms.Tensor:
@@ -771,7 +772,7 @@ class ClapAudioPatchMerging(nn.Cell):
         super().__init__()
         self.input_resolution = input_resolution
         self.dim = dim
-        self.reduction = nn.Linear(4 * dim, 2 * dim, bias=False)
+        self.reduction = nn.Dense(4 * dim, 2 * dim, has_bias=True)
         self.norm = norm_layer(4 * dim)
 
     def maybe_pad(self, input_feature, height, width):
@@ -1017,9 +1018,9 @@ class ClapProjectionLayer(nn.Cell):
         hidden_size = config.hidden_size
         projection_dim = config.projection_dim
 
-        self.linear1 = nn.Linear(hidden_size, projection_dim)
+        self.linear1 = nn.Dense(hidden_size, projection_dim)
         self.activation = ACT2FN[config.projection_hidden_act]
-        self.linear2 = nn.Linear(projection_dim, projection_dim)
+        self.linear2 = nn.Dense(projection_dim, projection_dim)
 
     def construct(self, hidden_states):
         hidden_states = self.linear1(hidden_states)
@@ -1132,9 +1133,9 @@ class ClapTextSelfAttention(nn.Cell):
         self.attention_head_size = int(config.hidden_size / config.num_attention_heads)
         self.all_head_size = self.num_attention_heads * self.attention_head_size
 
-        self.query = nn.Linear(config.hidden_size, self.all_head_size)
-        self.key = nn.Linear(config.hidden_size, self.all_head_size)
-        self.value = nn.Linear(config.hidden_size, self.all_head_size)
+        self.query = nn.Dense(config.hidden_size, self.all_head_size)
+        self.key = nn.Dense(config.hidden_size, self.all_head_size)
+        self.value = nn.Dense(config.hidden_size, self.all_head_size)
 
         self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
         self.position_embedding_type = position_embedding_type or getattr(
@@ -1257,7 +1258,7 @@ class ClapTextSelfAttention(nn.Cell):
 class ClapTextSelfOutput(nn.Cell):
     def __init__(self, config):
         super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.dense = nn.Dense(config.hidden_size, config.hidden_size)
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
@@ -1329,7 +1330,7 @@ class ClapTextAttention(nn.Cell):
 class ClapTextIntermediate(nn.Cell):
     def __init__(self, config):
         super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.intermediate_size)
+        self.dense = nn.Dense(config.hidden_size, config.intermediate_size)
         if isinstance(config.hidden_act, str):
             self.intermediate_act_fn = ACT2FN[config.hidden_act]
         else:
@@ -1345,7 +1346,7 @@ class ClapTextIntermediate(nn.Cell):
 class ClapTextOutput(nn.Cell):
     def __init__(self, config):
         super().__init__()
-        self.dense = nn.Linear(config.intermediate_size, config.hidden_size)
+        self.dense = nn.Dense(config.intermediate_size, config.hidden_size)
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
@@ -1541,7 +1542,7 @@ class ClapTextEncoder(nn.Cell):
 class ClapTextPooler(nn.Cell):
     def __init__(self, config):
         super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.dense = nn.Dense(config.hidden_size, config.hidden_size)
         self.activation = nn.Tanh()
 
     def construct(self, hidden_states: ms.Tensor) -> ms.Tensor:
@@ -1568,22 +1569,33 @@ class ClapPreTrainedModel(MSPreTrainedModel):
         factor = self.config.initializer_factor
 
         if isinstance(module, ClapTextEmbeddings):
-            module.position_embeddings.weight.data.normal_(mean=0.0, std=factor * 0.02)
-            module.token_type_embeddings.weight.data.normal_(mean=0.0, std=factor * 0.02)
+            module.position_embeddings.weight.set_data(
+                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.weight.shape, dtype=module.weight.dtype)
+            )
+            module.token_type_embeddings.weight.set_data(
+                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.weight.shape, dtype=module.weight.dtype)
+            )
         elif isinstance(module, ClapModel):
-            nn.init.normal_(module.logit_scale_a, std=factor * 0.02)
-            nn.init.normal_(module.logit_scale_t, std=factor * 0.02)
+            module.logit_scale_a.set_data(
+                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.weight.shape, dtype=module.weight.dtype)
+            )
+            module.logit_scale_t.set_data(
+                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.weight.shape, dtype=module.weight.dtype)
+            )
         elif isinstance(module, nn.Embedding):
-            module.weight.data.normal_(mean=0.0, std=factor * 0.02)
-
+            module.weight.set_data(
+                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.weight.shape, dtype=module.weight.dtype)
+            )
         elif isinstance(module, nn.LayerNorm):
-            module.bias.data.zero_()
-            module.weight.data.fill_(1.0)
-        elif isinstance(module, (nn.Conv2d, nn.Linear)):
+            module.bias.set_data(initializer(Zero(), shape=module.bias.shape, dtype=module.bias.dtype))
+            module.weight.set_data(initializer(One(), shape=module.weight.shape, dtype=module.weight.dtype))
+        elif isinstance(module, (nn.Conv2d, nn.Dense)):
             in_proj_std = (self.config.hidden_size**-0.5) * ((2 * self.config.num_hidden_layers) ** -0.5) * factor
-            nn.init.normal_(module.weight, std=in_proj_std)
+            module.weight.set_data(
+                initializer(Normal(mean=0.0, sigma=in_proj_std), shape=module.weight.shape, dtype=module.weight.dtype)
+            )
             if module.bias is not None:
-                module.bias.data.zero_()
+                module.bias.set_data(initializer(Zero(), shape=module.bias.shape, dtype=module.bias.dtype))
 
 
 class ClapAudioModel(ClapPreTrainedModel):
@@ -1829,8 +1841,8 @@ class ClapModel(ClapPreTrainedModel):
         text_config = config.text_config
         audio_config = config.audio_config
 
-        self.logit_scale_a = nn.Parameter(ms.Tensor(math.log(config.logit_scale_init_value)))
-        self.logit_scale_t = nn.Parameter(ms.Tensor(math.log(config.logit_scale_init_value)))
+        self.logit_scale_a = Parameter(ms.Tensor(math.log(config.logit_scale_init_value)))
+        self.logit_scale_t = Parameter(ms.Tensor(math.log(config.logit_scale_init_value)))
 
         self.projection_dim = config.projection_dim
 

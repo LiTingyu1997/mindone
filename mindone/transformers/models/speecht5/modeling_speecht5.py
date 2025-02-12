@@ -20,6 +20,7 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import mindspore as ms
 from mindspore import nn, ops, Parameter
+from mindspore.common.initializer import Normal, Uniform, HeUniform, Constant, One, Zero, initializer
 from mindspore.nn import BCEWithLogitsLoss, CrossEntropyLoss, L1Loss
 
 from ...activations import ACT2FN
@@ -33,7 +34,7 @@ from ...modeling_outputs import (
 )
 from ...modeling_utils import MSPreTrainedModel
 from transformers.utils import logging
-from transformers.models.modeling_speecht5.configuration_speecht5 import SpeechT5Config, SpeechT5HifiGanConfig
+from transformers.models.speecht5.configuration_speecht5 import SpeechT5Config, SpeechT5HifiGanConfig
 
 
 logger = logging.get_logger(__name__)
@@ -252,7 +253,7 @@ class SpeechT5NoLayerNormConvLayer(nn.Cell):
             self.out_conv_dim,
             kernel_size=config.conv_kernel[layer_id],
             stride=config.conv_stride[layer_id],
-            bias=config.conv_bias,
+            has_bias=config.conv_bias,
         )
         self.activation = ACT2FN[config.feat_extract_activation]
 
@@ -274,7 +275,7 @@ class SpeechT5LayerNormConvLayer(nn.Cell):
             self.out_conv_dim,
             kernel_size=config.conv_kernel[layer_id],
             stride=config.conv_stride[layer_id],
-            bias=config.conv_bias,
+            has_bias=config.conv_bias,
         )
         self.layer_norm = nn.LayerNorm(self.out_conv_dim, elementwise_affine=True)
         self.activation = ACT2FN[config.feat_extract_activation]
@@ -302,7 +303,7 @@ class SpeechT5GroupNormConvLayer(nn.Cell):
             self.out_conv_dim,
             kernel_size=config.conv_kernel[layer_id],
             stride=config.conv_stride[layer_id],
-            bias=config.conv_bias,
+            has_bias=config.conv_bias,
         )
         self.activation = ACT2FN[config.feat_extract_activation]
 
@@ -332,7 +333,7 @@ class SpeechT5SinusoidalPositionalEmbedding(nn.Cell):
             # in forward put the weights on the correct dtype and device of the param
             emb_weights = emb_weights.to(dtype=self.weights.dtype)
 
-        self.weights = nn.Parameter(emb_weights)
+        self.weights = Parameter(emb_weights)
         self.weights.requires_grad = False
         self.weights.detach_()
 
@@ -392,8 +393,10 @@ class SpeechT5PositionalConvEmbedding(nn.Cell):
             config.hidden_size,
             config.hidden_size,
             kernel_size=config.num_conv_pos_embeddings,
+            pad_mode="pad",
             padding=config.num_conv_pos_embeddings // 2,
             groups=config.num_conv_pos_embedding_groups,
+            has_bias=True,
         )
 
         weight_norm = nn.utils.weight_norm
@@ -523,7 +526,7 @@ class SpeechT5FeatureProjection(nn.Cell):
     def __init__(self, config):
         super().__init__()
         self.layer_norm = nn.LayerNorm(config.conv_dim[-1], eps=config.layer_norm_eps)
-        self.projection = nn.Linear(config.conv_dim[-1], config.hidden_size)
+        self.projection = nn.Dense(config.conv_dim[-1], config.hidden_size)
         self.dropout = nn.Dropout(config.feat_proj_dropout)
 
     def forward(self, hidden_states):
@@ -543,7 +546,7 @@ class SpeechT5SpeechEncoderPrenet(nn.Cell):
 
         # model only needs masking vector if mask prob is > 0.0
         if config.mask_time_prob > 0.0 or config.mask_feature_prob > 0.0:
-            self.masked_spec_embed = nn.Parameter(ms.Tensor(config.hidden_size).uniform_())
+            self.masked_spec_embed = Parameter(ms.Tensor(config.hidden_size).uniform_())
 
         self.pos_conv_embed = SpeechT5PositionalConvEmbedding(config)
         self.pos_sinusoidal_embed = SpeechT5SinusoidalPositionalEmbedding(
@@ -675,7 +678,7 @@ class SpeechT5SpeechDecoderPrenet(nn.Cell):
 
         self.layers = nn.CellList(
             [
-                nn.Linear(
+                nn.Dense(
                     config.num_mel_bins if i == 0 else config.speech_decoder_prenet_units,
                     config.speech_decoder_prenet_units,
                 )
@@ -683,13 +686,13 @@ class SpeechT5SpeechDecoderPrenet(nn.Cell):
             ]
         )
 
-        self.final_layer = nn.Linear(config.speech_decoder_prenet_units, config.hidden_size)
+        self.final_layer = nn.Dense(config.speech_decoder_prenet_units, config.hidden_size)
         self.encode_positions = SpeechT5ScaledPositionalEncoding(
             config.positional_dropout,
             config.hidden_size,
             config.max_speech_positions,
         )
-        self.speaker_embeds_layer = nn.Linear(config.speaker_embedding_dim + config.hidden_size, config.hidden_size)
+        self.speaker_embeds_layer = nn.Dense(config.speaker_embedding_dim + config.hidden_size, config.hidden_size)
 
     def _consistent_dropout(self, inputs_embeds, p):
         mask = ops.bernoulli(inputs_embeds[0], p=p)
@@ -740,8 +743,9 @@ class SpeechT5BatchNormConvLayer(nn.Cell):
             out_conv_dim,
             kernel_size=config.speech_decoder_postnet_kernel,
             stride=1,
+            pad_mode="pad",
             padding=(config.speech_decoder_postnet_kernel - 1) // 2,
-            bias=False,
+            has_bias=False,
         )
         self.batch_norm = nn.BatchNorm1d(out_conv_dim)
 
@@ -766,8 +770,8 @@ class SpeechT5SpeechDecoderPostnet(nn.Cell):
         super().__init__()
         self.config = config
 
-        self.feat_out = nn.Linear(config.hidden_size, config.num_mel_bins * config.reduction_factor)
-        self.prob_out = nn.Linear(config.hidden_size, config.reduction_factor)
+        self.feat_out = nn.Dense(config.hidden_size, config.num_mel_bins * config.reduction_factor)
+        self.prob_out = nn.Dense(config.hidden_size, config.reduction_factor)
 
         self.layers = nn.CellList(
             [SpeechT5BatchNormConvLayer(config, i) for i in range(config.speech_decoder_postnet_layers)]
@@ -856,7 +860,7 @@ class SpeechT5TextDecoderPostnet(nn.Cell):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.lm_head = nn.Dense(config.hidden_size, config.vocab_size, bias=False)
 
     def forward(self, hidden_states: ms.Tensor):
         return self.lm_head(hidden_states)
@@ -896,10 +900,10 @@ class SpeechT5Attention(nn.Cell):
         self.scaling = self.head_dim**-0.5
         self.is_decoder = is_decoder
 
-        self.k_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
-        self.v_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
-        self.q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
-        self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
+        self.k_proj = nn.Dense(embed_dim, embed_dim, bias=bias)
+        self.v_proj = nn.Dense(embed_dim, embed_dim, bias=bias)
+        self.q_proj = nn.Dense(embed_dim, embed_dim, bias=bias)
+        self.out_proj = nn.Dense(embed_dim, embed_dim, bias=bias)
 
     def _shape(self, tensor: ms.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
@@ -1033,13 +1037,13 @@ class SpeechT5FeedForward(nn.Cell):
         super().__init__()
         self.intermediate_dropout = nn.Dropout(config.activation_dropout)
 
-        self.intermediate_dense = nn.Linear(config.hidden_size, intermediate_size)
+        self.intermediate_dense = nn.Dense(config.hidden_size, intermediate_size)
         if isinstance(config.hidden_act, str):
             self.intermediate_act_fn = ACT2FN[config.hidden_act]
         else:
             self.intermediate_act_fn = config.hidden_act
 
-        self.output_dense = nn.Linear(intermediate_size, config.hidden_size)
+        self.output_dense = nn.Dense(intermediate_size, config.hidden_size)
         self.output_dropout = nn.Dropout(config.hidden_dropout)
 
     def forward(self, hidden_states):
@@ -1235,32 +1239,42 @@ class SpeechT5PreTrainedModel(MSPreTrainedModel):
     def _init_weights(self, module):
         """Initialize the weights"""
         if isinstance(module, SpeechT5PositionalConvEmbedding):
-            nn.init.normal_(
-                module.conv.weight,
-                mean=0,
-                std=2 * math.sqrt(1 / (module.conv.kernel_size[0] * module.conv.in_channels)),
+            module.conv.weight.set_data(
+                initializer(Normal(mean=0.0, sigma=2 * math.sqrt(1 / (module.conv.kernel_size[0] * module.conv.in_channels))), shape=module.weight.shape, dtype=module.weight.dtype)
             )
-            nn.init.constant_(module.conv.bias, 0)
+            module.conv.bias.set_data(
+                initializer(Constant(0), shape=module.conv.bias.shape, dtype=module.conv.bias.dtype)
+            )
         elif isinstance(module, SpeechT5FeatureProjection):
             k = math.sqrt(1 / module.projection.in_features)
-            nn.init.uniform_(module.projection.weight, a=-k, b=k)
-            nn.init.uniform_(module.projection.bias, a=-k, b=k)
-        elif isinstance(module, nn.Linear):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            module.projection.weight.set_data(
+                initializer(Uniform(k), shape=module.projection.weight.shape, dtype=module.projection.weight.dtype)
+            )
+            module.projection.bias.set_data(
+                initializer(Uniform(k), shape=module.projection.bias.shape, dtype=module.projection.bias.dtype)
+            )
+        elif isinstance(module, nn.Dense):
+            module.weight.set_data(
+                initializer(Normal(mean=0.0, sigma=self.config.initializer_range), shape=module.weight.shape, dtype=module.weight.dtype)
+            )
             if module.bias is not None:
-                module.bias.data.zero_()
+                module.bias.set_data(initializer(Zero(), shape=module.bias.shape, dtype=module.bias.dtype))
         elif isinstance(module, (nn.LayerNorm, nn.GroupNorm)):
-            module.bias.data.zero_()
-            module.weight.data.fill_(1.0)
+            module.bias.set_data(initializer(Zero(), shape=module.bias.shape, dtype=module.bias.dtype))
+            module.weight.set_data(initializer(One(), shape=module.weight.shape, dtype=module.weight.dtype))
         elif isinstance(module, nn.Conv1d):
-            nn.init.kaiming_normal_(module.weight)
+            module.weight(HeUniform(), shape=module.weight.shape, dtype=module.weight.dtype)
             if module.bias is not None:
                 k = math.sqrt(module.groups / (module.in_channels * module.kernel_size[0]))
-                nn.init.uniform_(module.bias, a=-k, b=k)
+                module.bias.set_data(
+                initializer(Uniform(k), shape=module.projection.bias.shape, dtype=module.projection.bias.dtype)
+            )
         elif isinstance(module, nn.Embedding):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            module.weight.set_data(
+                initializer(Normal(mean=0.0, sigma=self.config.initializer_range), shape=module.weight.shape, dtype=module.weight.dtype)
+            )
             if module.padding_idx is not None:
-                module.weight.data[module.padding_idx].zero_()
+                module.weight[module.padding_idx].set_data(initializer(Zero(), shape=module.weight.shape, dtype=module.weight.dtype))
 
 
 class SpeechT5Encoder(SpeechT5PreTrainedModel):
@@ -3205,7 +3219,9 @@ class HifiGanResidualBlock(nn.Cell):
                     kernel_size,
                     stride=1,
                     dilation=dilation[i],
+                    pad_mode="pad",
                     padding=self.get_padding(kernel_size, dilation[i]),
+                    has_bias=True,
                 )
                 for i in range(len(dilation))
             ]
@@ -3218,7 +3234,9 @@ class HifiGanResidualBlock(nn.Cell):
                     kernel_size,
                     stride=1,
                     dilation=1,
+                    pad_mode="pad",
                     padding=self.get_padding(kernel_size, 1),
+                    has_bias=True,
                 )
                 for _ in range(len(dilation))
             ]
@@ -3263,18 +3281,21 @@ class SpeechT5HifiGan(MSPreTrainedModel):
             config.upsample_initial_channel,
             kernel_size=7,
             stride=1,
+            pad_mode="pad",
             padding=3,
+            has_bias=True,
         )
 
         self.upsampler = nn.CellList()
         for i, (upsample_rate, kernel_size) in enumerate(zip(config.upsample_rates, config.upsample_kernel_sizes)):
             self.upsampler.append(
-                nn.ConvTranspose1d(
+                nn.Conv1dTranspose(
                     config.upsample_initial_channel // (2**i),
                     config.upsample_initial_channel // (2 ** (i + 1)),
                     kernel_size=kernel_size,
                     stride=upsample_rate,
                     padding=(kernel_size - upsample_rate) // 2,
+                    has_bias=True,
                 )
             )
 
@@ -3284,7 +3305,7 @@ class SpeechT5HifiGan(MSPreTrainedModel):
             for kernel_size, dilation in zip(config.resblock_kernel_sizes, config.resblock_dilation_sizes):
                 self.resblocks.append(HifiGanResidualBlock(channels, kernel_size, dilation, config.leaky_relu_slope))
 
-        self.conv_post = nn.Conv1d(channels, 1, kernel_size=7, stride=1, padding=3)
+        self.conv_post = nn.Conv1d(channels, 1, kernel_size=7, stride=1, pad_mode="pad", padding=3, has_bias=True)
 
         self.register_buffer("mean", ops.zeros(config.model_in_dim))
         self.register_buffer("scale", ops.ones(config.model_in_dim))
@@ -3294,7 +3315,7 @@ class SpeechT5HifiGan(MSPreTrainedModel):
 
     def _init_weights(self, module):
         """Initialize the weights."""
-        if isinstance(module, (nn.Linear, nn.Conv1d)):
+        if isinstance(module, (nn.Dense, nn.Conv1d)):
             module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
             if module.bias is not None:
                 module.bias.data.zero_()
