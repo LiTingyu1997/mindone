@@ -3294,6 +3294,7 @@ class SpeechT5HifiGan(MSPreTrainedModel):
                     config.upsample_initial_channel // (2 ** (i + 1)),
                     kernel_size=kernel_size,
                     stride=upsample_rate,
+                    pad_mode="pad",
                     padding=(kernel_size - upsample_rate) // 2,
                     has_bias=True,
                 )
