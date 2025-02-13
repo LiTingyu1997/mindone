@@ -91,6 +91,20 @@ def _get_pt2ms_mappings(m):
     return mappings
 
 
+def _get_pt2ms_mapped_kv(mappings, key_pt, value_pt=None, prefix=""):
+    if key_pt.startswith(prefix):
+        key_ms, value_mapping = mappings.get(key_pt[len(prefix) :], (key_pt[len(prefix) :], lambda x: x))
+        if key_ms is not None:
+            key_ms = prefix + key_ms
+    else:
+        key_ms, value_mapping = mappings.get(key_pt, (key_pt, lambda x: x))
+
+    if value_pt is None:
+        return key_ms, None
+    else:
+        return key_ms, value_mapping(value_pt)
+    
+    
 def _convert_state_dict(m, state_dict_pt, prefix=""):
     if not state_dict_pt:
         return state_dict_pt
