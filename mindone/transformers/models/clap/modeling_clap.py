@@ -320,8 +320,8 @@ class ClapAudioPatchEmbed(nn.Cell):
             config.patch_embed_input_channels * scale_factor,
             config.patch_embeds_hidden_size,
             kernel_size=patch_size,
-            stride=patch_stride,
-            padding=padding,
+            stride=tuple(patch_stride),
+            padding=padding[0],
         )
 
         self.norm = LayerNorm(config.patch_embeds_hidden_size) if config.enable_patch_layer_norm else nn.Identity()
@@ -332,7 +332,7 @@ class ClapAudioPatchEmbed(nn.Cell):
                 config.patch_embeds_hidden_size,
                 kernel_size=(patch_size[0], patch_size[1] * 3),
                 stride=(patch_stride[0], patch_stride[1] * 3),
-                padding=padding,
+                padding=padding[0],
             )
 
     def construct(self, hidden_states, is_longer_idx=None):
@@ -402,7 +402,7 @@ class ClapAudioSelfAttention(nn.Cell):
         )
 
         self.relative_position_bias_table = Parameter(
-            ops.zeros((2 * self.window_size[0] - 1) * (2 * self.window_size[1] - 1), num_heads)
+            ops.zeros(((2 * self.window_size[0] - 1) * (2 * self.window_size[1] - 1), num_heads))
         )
 
         # get pair-wise relative position index for each token inside the window
