@@ -148,11 +148,11 @@ class MusicLDMPipeline(DiffusionPipeline, StableDiffusionMixin):
                 padding="max_length",
                 max_length=self.tokenizer.model_max_length,
                 truncation=True,
-                return_tensors="pt",
+                return_tensors="np",
             )
-            text_input_ids = text_inputs.input_ids
-            attention_mask = text_inputs.attention_mask
-            untruncated_ids = self.tokenizer(prompt, padding="longest", return_tensors="pt").input_ids
+            text_input_ids = ms.Tensor(text_inputs.input_ids)
+            attention_mask = ms.Tensor(text_inputs.attention_mask)
+            untruncated_ids = ms.Tensor(self.tokenizer(prompt, padding="longest", return_tensors="np").input_ids)
 
             if untruncated_ids.shape[-1] >= text_input_ids.shape[-1] and not ops.equal(
                 text_input_ids, untruncated_ids
@@ -207,11 +207,11 @@ class MusicLDMPipeline(DiffusionPipeline, StableDiffusionMixin):
                 padding="max_length",
                 max_length=max_length,
                 truncation=True,
-                return_tensors="pt",
+                return_tensors="np",
             )
 
-            uncond_input_ids = uncond_input.input_ids
-            attention_mask = uncond_input.attention_mask
+            uncond_input_ids = ms.Tensor(uncond_input.input_ids)
+            attention_mask = ms.Tensor(uncond_input.attention_mask)
 
             negative_prompt_embeds = self.text_encoder.get_text_features(
                 uncond_input_ids,
@@ -253,13 +253,13 @@ class MusicLDMPipeline(DiffusionPipeline, StableDiffusionMixin):
         #         "generated. To enable automatic scoring, install `librosa` with: `pip install librosa`."
         #     )
         #     return audio
-        inputs = self.tokenizer(text, return_tensors="pt", padding=True)
+        inputs = ms.Tensor(self.tokenizer(text, return_tensors="np", padding=True))
         resampled_audio = librosa.resample(
             audio.numpy(), orig_sr=self.vocoder.config.sampling_rate, target_sr=self.feature_extractor.sampling_rate
         )
-        inputs["input_features"] = self.feature_extractor(
-            list(resampled_audio), return_tensors="pt", sampling_rate=self.feature_extractor.sampling_rate
-        ).input_features.type(dtype)
+        inputs["input_features"] = ms.Tensor(self.feature_extractor(
+            list(resampled_audio), return_tensors="np", sampling_rate=self.feature_extractor.sampling_rate
+        ).input_features.type(dtype))
         inputs = inputs
 
         # compute the audio-text similarity score using the CLAP model
@@ -440,7 +440,7 @@ class MusicLDMPipeline(DiffusionPipeline, StableDiffusionMixin):
                 [`self.processor`](https://github.com/huggingface/diffusers/blob/main/src/diffusers/models/attention_processor.py).
             output_type (`str`, *optional*, defaults to `"np"`):
                 The output format of the generated audio. Choose between `"np"` to return a NumPy `np.ndarray` or
-                `"pt"` to return a PyTorch `ms.Tensor` object. Set to `"latent"` to return the latent diffusion
+                `"np"` to return a PyTorch `ms.Tensor` object. Set to `"latent"` to return the latent diffusion
                 model (LDM) output.
 
         Examples:

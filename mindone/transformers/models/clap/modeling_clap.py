@@ -380,7 +380,7 @@ class ClapAudioPatchEmbed(nn.Cell):
             hidden_states = self.proj(hidden_states)
 
         if self.flatten:
-            hidden_states = hidden_states.flatten(2).transpose(1, 2)
+            hidden_states = hidden_states.flatten(2).swapaxes(1, 2)
         hidden_states = self.norm(hidden_states)
         return hidden_states
 
@@ -425,7 +425,7 @@ class ClapAudioSelfAttention(nn.Cell):
         self.dropout = nn.Dropout(p=config.attention_probs_dropout_prob)
 
     def transpose_for_scores(self, x):
-        new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
+        new_x_shape = x.shape[:-1] + (self.num_attention_heads, self.attention_head_size)
         x = x.view(new_x_shape)
         return x.permute(0, 2, 1, 3)
 
@@ -444,7 +444,7 @@ class ClapAudioSelfAttention(nn.Cell):
         query_layer = self.transpose_for_scores(mixed_query_layer)
 
         # Take the dot product between "query" and "key" to get the raw attention scores.
-        attention_scores = ops.matmul(query_layer, key_layer.transpose(-1, -2))
+        attention_scores = ops.matmul(query_layer, key_layer.swapaxes(-1, -2))
 
         attention_scores = attention_scores / math.sqrt(self.attention_head_size)
 
@@ -478,7 +478,7 @@ class ClapAudioSelfAttention(nn.Cell):
 
         context_layer = ops.matmul(attention_probs, value_layer)
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
-        new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
+        new_context_layer_shape = context_layer.shape[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(new_context_layer_shape)
 
         outputs = (context_layer, attention_probs) if output_attentions else (context_layer,)
@@ -640,7 +640,7 @@ class ClapAudioLayer(nn.Cell):
         else:
             pass
         height, width = input_dimensions
-        batch_size, _, channels = hidden_states.size()
+        batch_size, _, channels = hidden_states.shape
         shortcut = hidden_states
 
         hidden_states = self.layernorm_before(hidden_states)
@@ -898,9 +898,9 @@ class ClapAudioEncoder(nn.Cell):
         always_partition: Optional[bool] = False,
         return_dict: Optional[bool] = True,
     ) -> Union[Tuple, ClapAudioModelOutput]:
-        input_features = input_features.transpose(1, 3)
+        input_features = input_features.swapaxes(1, 3)
         normalized_input_features = self.batch_norm(input_features)
-        normalized_input_features = normalized_input_features.transpose(1, 3)
+        normalized_input_features = normalized_input_features.swapaxes(1, 3)
 
         is_longer_list_idx = None
         if self.enable_fusion:
@@ -1049,8 +1049,8 @@ class ClapTextEmbeddings(nn.Cell):
         self.dropout = nn.Dropout(p=config.hidden_dropout_prob)
         # position_ids (1, len position emb) is contiguous in memory and exported when serialized
         self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
-        self.position_ids = ops.arange(config.max_position_embeddings).expand((1, -1))
-        self.token_type_ids = ops.zeros(self.position_ids.size, dtype=ms.int64)
+        self.position_ids = ops.arange(config.max_position_embeddings).expand_dims(0)
+        self.token_type_ids = ops.zeros(self.position_ids.shape, dtype=ms.int64)
 
         # End copy
         self.padding_idx = config.pad_token_id
@@ -1069,9 +1069,9 @@ class ClapTextEmbeddings(nn.Cell):
                 position_ids = self.create_position_ids_from_inputs_embeds(inputs_embeds)
 
         if input_ids is not None:
-            input_shape = input_ids.size()
+            input_shape = input_ids.shape
         else:
-            input_shape = inputs_embeds.size()[:-1]
+            input_shape = inputs_embeds.shape[:-1]
 
         seq_length = input_shape[1]
 
@@ -1081,7 +1081,7 @@ class ClapTextEmbeddings(nn.Cell):
         if token_type_ids is None:
             if hasattr(self, "token_type_ids"):
                 buffered_token_type_ids = self.token_type_ids[:, :seq_length]
-                buffered_token_type_ids_expanded = buffered_token_type_ids.expand(input_shape[0], seq_length)
+                buffered_token_type_ids_expanded = buffered_token_type_ids.broadcast_to((input_shape[0], seq_length))
                 token_type_ids = buffered_token_type_ids_expanded
             else:
                 token_type_ids = ops.zeros(input_shape, dtype=ms.int64)
@@ -1107,13 +1107,13 @@ class ClapTextEmbeddings(nn.Cell):
 
         Returns: ms.Tensor
         """
-        input_shape = inputs_embeds.size()[:-1]
+        input_shape = inputs_embeds.shape[:-1]
         sequence_length = input_shape[1]
 
         position_ids = ops.arange(
             self.padding_idx + 1, sequence_length + self.padding_idx + 1, dtype=ms.int64
         )
-        return position_ids.unsqueeze(0).expand(input_shape)
+        return position_ids.unsqueeze(0).broadcast_to(input_shape)
 
 
 # Copied from transformers.models.bert.modeling_bert.BertSelfAttention with Bert->ClapText
@@ -1145,7 +1145,7 @@ class ClapTextSelfAttention(nn.Cell):
         self.is_decoder = config.is_decoder
 
     def transpose_for_scores(self, x: ms.Tensor) -> ms.Tensor:
-        new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
+        new_x_shape = x.shape[:-1] + (self.num_attention_heads, self.attention_head_size)
         x = x.view(new_x_shape)
         return x.permute(0, 2, 1, 3)
 
@@ -1198,7 +1198,7 @@ class ClapTextSelfAttention(nn.Cell):
             past_key_value = (key_layer, value_layer)
 
         # Take the dot product between "query" and "key" to get the raw attention scores.
-        attention_scores = ops.matmul(query_layer, key_layer.transpose(-1, -2))
+        attention_scores = ops.matmul(query_layer, key_layer.swapaxes(-1, -2))
 
         if self.position_embedding_type == "relative_key" or self.position_embedding_type == "relative_key_query":
             query_length, key_length = query_layer.shape[2], key_layer.shape[2]
@@ -1241,7 +1241,7 @@ class ClapTextSelfAttention(nn.Cell):
         context_layer = ops.matmul(attention_probs, value_layer)
 
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
-        new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
+        new_context_layer_shape = context_layer.shape[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(new_context_layer_shape)
 
         outputs = (context_layer, attention_probs) if output_attentions else (context_layer,)
@@ -1742,9 +1742,9 @@ class ClapTextModel(ClapPreTrainedModel):
             raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
         elif input_ids is not None:
             self.warn_if_padding_and_no_attention_mask(input_ids, attention_mask)
-            input_shape = input_ids.size()
+            input_shape = input_ids.shape
         elif inputs_embeds is not None:
-            input_shape = inputs_embeds.size()[:-1]
+            input_shape = inputs_embeds.shape[:-1]
         else:
             raise ValueError("You have to specify either input_ids or inputs_embeds")
 
@@ -1759,7 +1759,7 @@ class ClapTextModel(ClapPreTrainedModel):
         if token_type_ids is None:
             if hasattr(self.embeddings, "token_type_ids"):
                 buffered_token_type_ids = self.embeddings.token_type_ids[:, :seq_length]
-                buffered_token_type_ids_expanded = buffered_token_type_ids.expand(batch_size, seq_length)
+                buffered_token_type_ids_expanded = buffered_token_type_ids.broadcast_to((batch_size, seq_length))
                 token_type_ids = buffered_token_type_ids_expanded
             else:
                 token_type_ids = ops.zeros(input_shape, dtype=ms.int64)
@@ -1771,7 +1771,7 @@ class ClapTextModel(ClapPreTrainedModel):
         # If a 2D or 3D attention mask is provided for the cross-attention
         # we need to make broadcastable to [batch_size, num_heads, seq_length, seq_length]
         if self.config.is_decoder and encoder_hidden_states is not None:
-            encoder_batch_size, encoder_sequence_length, _ = encoder_hidden_states.size()
+            encoder_batch_size, encoder_sequence_length, _ = encoder_hidden_states.shape
             encoder_hidden_shape = (encoder_batch_size, encoder_sequence_length)
             if encoder_attention_mask is None:
                 encoder_attention_mask = ops.ones(encoder_hidden_shape)

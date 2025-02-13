@@ -284,9 +284,9 @@ class SpeechT5LayerNormConvLayer(nn.Cell):
     def construct(self, hidden_states):
         hidden_states = self.conv(hidden_states)
 
-        hidden_states = hidden_states.transpose(-2, -1)
+        hidden_states = hidden_states.swapaxes(-2, -1)
         hidden_states = self.layer_norm(hidden_states)
-        hidden_states = hidden_states.transpose(-2, -1)
+        hidden_states = hidden_states.swapaxes(-2, -1)
 
         hidden_states = self.activation(hidden_states)
         return hidden_states
@@ -358,7 +358,7 @@ class SpeechT5SinusoidalPositionalEmbedding(nn.Cell):
 
      
     def construct(self, input_ids: ms.Tensor, past_key_values_length: int = 0):
-        bsz, seq_len = input_ids.size()
+        bsz, seq_len = input_ids.shape
         # Create the position ids from the input token ids. Any padded tokens remain padded.
         position_ids = self.create_position_ids_from_input_ids(input_ids, self.padding_idx, past_key_values_length)
 
@@ -410,13 +410,13 @@ class SpeechT5PositionalConvEmbedding(nn.Cell):
         self.activation = ACT2FN[config.feat_extract_activation]
 
     def construct(self, hidden_states):
-        hidden_states = hidden_states.transpose(1, 2)
+        hidden_states = hidden_states.swapaxes(1, 2)
 
         hidden_states = self.conv(hidden_states)
         hidden_states = self.padding(hidden_states)
         hidden_states = self.activation(hidden_states)
 
-        hidden_states = hidden_states.transpose(1, 2)
+        hidden_states = hidden_states.swapaxes(1, 2)
         return hidden_states
 
 
@@ -566,7 +566,7 @@ class SpeechT5SpeechEncoderPrenet(nn.Cell):
         mask_time_indices: Optional[ms.Tensor] = None,
     ):
         extract_features = self.feature_encoder(input_values)
-        extract_features = extract_features.transpose(1, 2)
+        extract_features = extract_features.swapaxes(1, 2)
 
         if attention_mask is not None:
             # compute reduced attention_mask corresponding to feature vectors
@@ -641,7 +641,7 @@ class SpeechT5SpeechEncoderPrenet(nn.Cell):
             return hidden_states
 
         # generate indices & apply SpecAugment along time axis
-        batch_size, sequence_length, hidden_size = hidden_states.size()
+        batch_size, sequence_length, hidden_size = hidden_states.shape
 
         if mask_time_indices is not None:
             # apply SpecAugment along time axis with given mask_time_indices
@@ -785,10 +785,10 @@ class SpeechT5SpeechDecoderPostnet(nn.Cell):
         return outputs_before_postnet, outputs_after_postnet, logits
 
     def postnet(self, hidden_states: ms.Tensor):
-        layer_output = hidden_states.transpose(1, 2)
+        layer_output = hidden_states.swapaxes(1, 2)
         for layer in self.layers:
             layer_output = layer(layer_output)
-        return hidden_states + layer_output.transpose(1, 2)
+        return hidden_states + layer_output.swapaxes(1, 2)
 
 
 class SpeechT5TextEncoderPrenet(nn.Cell):
@@ -842,7 +842,7 @@ class SpeechT5TextDecoderPrenet(nn.Cell):
         past_key_values: Optional[List[ms.Tensor]] = None,
     ):
         if input_ids is not None:
-            input_shape = input_ids.size()
+            input_shape = input_ids.shape
             input_ids = input_ids.view(-1, input_shape[-1])
         else:
             raise ValueError("You have to specify `decoder_input_ids`")
@@ -907,7 +907,7 @@ class SpeechT5Attention(nn.Cell):
         self.out_proj = nn.Dense(embed_dim, embed_dim, bias=bias)
 
     def _shape(self, tensor: ms.Tensor, seq_len: int, bsz: int):
-        return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
+        return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).swapaxes(1, 2).contiguous()
 
     def construct(
         self,
@@ -925,7 +925,7 @@ class SpeechT5Attention(nn.Cell):
         # for the decoder
         is_cross_attention = key_value_states is not None
 
-        bsz, tgt_len, _ = hidden_states.size()
+        bsz, tgt_len, _ = hidden_states.shape
 
         # get query proj
         query_states = self.q_proj(hidden_states) * self.scaling
@@ -965,27 +965,27 @@ class SpeechT5Attention(nn.Cell):
         value_states = value_states.view(*proj_shape)
 
         src_len = key_states.size(1)
-        attn_weights = ops.bmm(query_states, key_states.transpose(1, 2))
+        attn_weights = ops.bmm(query_states, key_states.swapaxes(1, 2))
 
-        if attn_weights.size() != (bsz * self.num_heads, tgt_len, src_len):
+        if attn_weights.shape != (bsz * self.num_heads, tgt_len, src_len):
             raise ValueError(
                 f"Attention weights should be of size {(bsz * self.num_heads, tgt_len, src_len)}, but is"
-                f" {attn_weights.size()}"
+                f" {attn_weights.shape}"
             )
 
         # relative attention bias
         if position_bias is not None:
-            reshape_q = query_states.contiguous().view(bsz * self.num_heads, -1, self.head_dim).transpose(0, 1)
-            rel_pos_bias = ops.matmul(reshape_q, position_bias.transpose(-2, -1))
-            rel_pos_bias = rel_pos_bias.transpose(0, 1).view(
+            reshape_q = query_states.contiguous().view(bsz * self.num_heads, -1, self.head_dim).swapaxes(0, 1)
+            rel_pos_bias = ops.matmul(reshape_q, position_bias.swapaxes(-2, -1))
+            rel_pos_bias = rel_pos_bias.swapaxes(0, 1).view(
                 bsz * self.num_heads, position_bias.size(0), position_bias.size(1)
             )
             attn_weights += rel_pos_bias
 
         if attention_mask is not None:
-            if attention_mask.size() != (bsz, 1, tgt_len, src_len):
+            if attention_mask.shape != (bsz, 1, tgt_len, src_len):
                 raise ValueError(
-                    f"Attention mask should be of size {(bsz, 1, tgt_len, src_len)}, but is {attention_mask.size()}"
+                    f"Attention mask should be of size {(bsz, 1, tgt_len, src_len)}, but is {attention_mask.shape}"
                 )
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
@@ -993,10 +993,10 @@ class SpeechT5Attention(nn.Cell):
         attn_weights = nn.functional.softmax(attn_weights, axis=-1)
 
         if layer_head_mask is not None:
-            if layer_head_mask.size() != (self.num_heads,):
+            if layer_head_mask.shape != (self.num_heads,):
                 raise ValueError(
                     f"Head mask for a single layer should be of size {(self.num_heads,)}, but is"
-                    f" {layer_head_mask.size()}"
+                    f" {layer_head_mask.shape}"
                 )
             attn_weights = layer_head_mask.view(1, -1, 1, 1) * attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
@@ -1015,14 +1015,14 @@ class SpeechT5Attention(nn.Cell):
 
         attn_output = ops.bmm(attn_probs, value_states)
 
-        if attn_output.size() != (bsz * self.num_heads, tgt_len, self.head_dim):
+        if attn_output.shape != (bsz * self.num_heads, tgt_len, self.head_dim):
             raise ValueError(
                 f"`attn_output` should be of size {(bsz, self.num_heads, tgt_len, self.head_dim)}, but is"
-                f" {attn_output.size()}"
+                f" {attn_output.shape}"
             )
 
         attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
-        attn_output = attn_output.transpose(1, 2)
+        attn_output = attn_output.swapaxes(1, 2)
 
         # Use the `embed_dim` from the config (stored in the class) rather than `hidden_state` because `attn_output` can be
         # partitioned aross GPUs when using tensor-parallelism.
@@ -1362,10 +1362,10 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
 
         # check if head_mask has a correct number of layers specified if desired
         if head_mask is not None:
-            if head_mask.size()[0] != len(self.layers):
+            if head_mask.shape[0] != len(self.layers):
                 raise ValueError(
                     f"The head_mask should be specified for {len(self.layers)} layers, but it is for"
-                    f" {head_mask.size()[0]}."
+                    f" {head_mask.shape[0]}."
                 )
 
         for idx, encoder_layer in enumerate(self.layers):
@@ -1625,7 +1625,7 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
         use_cache = use_cache if use_cache is not None else self.config.use_cache
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        input_shape = hidden_states.size()[:-1]
+        input_shape = hidden_states.shape[:-1]
 
         past_key_values_length = past_key_values[0][0].shape[2] if past_key_values is not None else 0
 
@@ -1658,10 +1658,10 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
         # check if head_mask/cross_attn_head_mask has a correct number of layers specified if desired
         for attn_mask, mask_name in zip([head_mask, cross_attn_head_mask], ["head_mask", "cross_attn_head_mask"]):
             if attn_mask is not None:
-                if attn_mask.size()[0] != (len(self.layers)):
+                if attn_mask.shape[0] != (len(self.layers)):
                     raise ValueError(
                         f"The `{mask_name}` should be specified for {len(self.layers)} layers, but it is for"
-                        f" {head_mask.size()[0]}."
+                        f" {head_mask.shape[0]}."
                     )
 
         for idx, decoder_layer in enumerate(self.layers):
@@ -2582,7 +2582,7 @@ def _generate_speech(
             meet_indexes = [i for i in meet_indexes if i not in result_spectrogram]
             if len(meet_indexes) > 0:
                 spectrograms = ops.stack(spectrogram)
-                spectrograms = spectrograms.transpose(0, 1).flatten(1, 2)
+                spectrograms = spectrograms.swapaxes(0, 1).flatten(1, 2)
                 spectrograms = model.speech_decoder_postnet.postnet(spectrograms)
                 for meet_index in meet_indexes:
                     result_spectrogram[meet_index] = spectrograms[meet_index]
@@ -2599,7 +2599,7 @@ def _generate_speech(
             cross_attentions = ops.cat(cross_attentions, axis=2)
             if bsz > 1:
                 cross_attentions = cross_attentions.view(
-                    bsz, int(cross_attentions.size(0) / bsz), *cross_attentions.size()[-3:]
+                    bsz, int(cross_attentions.size(0) / bsz), *cross_attentions.shape[-3:]
                 )
             outputs = (outputs, cross_attentions)
     else:
@@ -2619,7 +2619,7 @@ def _generate_speech(
         if output_cross_attentions:
             cross_attentions = ops.cat(cross_attentions, axis=2)
             cross_attentions = cross_attentions.view(
-                bsz, int(cross_attentions.size(0) / bsz), *cross_attentions.size()[-3:]
+                bsz, int(cross_attentions.size(0) / bsz), *cross_attentions.shape[-3:]
             )
             outputs = (*outputs, cross_attentions)
     return outputs
@@ -3365,7 +3365,7 @@ class SpeechT5HifiGan(MSPreTrainedModel):
         if not is_batched:
             spectrogram = spectrogram.unsqueeze(0)
 
-        hidden_states = spectrogram.transpose(2, 1)
+        hidden_states = spectrogram.swapaxes(2, 1)
 
         hidden_states = self.conv_pre(hidden_states)
         for i in range(self.num_upsamples):
@@ -3383,7 +3383,7 @@ class SpeechT5HifiGan(MSPreTrainedModel):
 
         if not is_batched:
             # remove batch dim and collapse tensor to 1-d audio waveform
-            waveform = hidden_states.squeeze(0).transpose(1, 0).view(-1)
+            waveform = hidden_states.squeeze(0).swapaxes(1, 0).view(-1)
         else:
             # remove seq-len dim since this collapses to 1
             waveform = hidden_states.squeeze(1)
