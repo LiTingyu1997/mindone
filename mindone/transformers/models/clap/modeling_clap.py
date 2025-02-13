@@ -1567,10 +1567,10 @@ class ClapPreTrainedModel(MSPreTrainedModel):
 
         if isinstance(module, ClapTextEmbeddings):
             module.position_embeddings.embedding_table.set_data(
-                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.embedding_table.shape, dtype=module.embedding_table.dtype)
+                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.position_embeddings.embedding_table.shape, dtype=module.position_embeddings.embedding_table.dtype)
             )
             module.token_type_embeddings.embedding_table.set_data(
-                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.embedding_table.shape, dtype=module.embedding_table.dtype)
+                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.token_type_embeddings.embedding_table.shape, dtype=module.token_type_embeddings.embedding_table.dtype)
             )
         elif isinstance(module, ClapModel):
             module.logit_scale_a.set_data(
