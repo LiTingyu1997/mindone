@@ -22,8 +22,8 @@ import mindspore as ms
 from mindspore import ops
 
 from ...audio_utils import mel_filter_bank, spectrogram, window_function
-from transformers.feature_extraction_sequence_utils import SequenceFeatureExtractor
-from transformers.feature_extraction_utils import BatchFeature
+from ...feature_extraction_sequence_utils import SequenceFeatureExtractor
+from ...feature_extraction_utils import BatchFeature
 from transformers.utils import logging
 
 
