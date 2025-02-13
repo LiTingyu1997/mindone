@@ -422,7 +422,7 @@ class ClapAudioSelfAttention(nn.Cell):
         self.key = nn.Dense(self.all_head_size, self.all_head_size, has_bias=config.qkv_bias)
         self.value = nn.Dense(self.all_head_size, self.all_head_size, has_bias=config.qkv_bias)
 
-        self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
+        self.dropout = nn.Dropout(p=config.attention_probs_dropout_prob)
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
@@ -491,7 +491,7 @@ class ClapAudioSelfOutput(nn.Cell):
     def __init__(self, config, dim):
         super().__init__()
         self.dense = nn.Dense(dim, dim)
-        self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
+        self.dropout = nn.Dropout(p=config.attention_probs_dropout_prob)
 
     def construct(self, hidden_states: ms.Tensor, input_tensor: ms.Tensor) -> ms.Tensor:
         hidden_states = self.dense(hidden_states)
@@ -560,7 +560,7 @@ class ClapAudioOutput(nn.Cell):
     def __init__(self, config, dim):
         super().__init__()
         self.dense = nn.Dense(int(config.mlp_ratio * dim), dim)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(p=config.hidden_dropout_prob)
 
     def construct(self, hidden_states: ms.Tensor) -> ms.Tensor:
         hidden_states = self.dense(hidden_states)
@@ -1046,7 +1046,7 @@ class ClapTextEmbeddings(nn.Cell):
         # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
         # any TensorFlow checkpoint file
         self.LayerNorm = LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(p=config.hidden_dropout_prob)
         # position_ids (1, len position emb) is contiguous in memory and exported when serialized
         self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
         self.position_ids = ops.arange(config.max_position_embeddings).expand((1, -1))
@@ -1134,7 +1134,7 @@ class ClapTextSelfAttention(nn.Cell):
         self.key = nn.Dense(config.hidden_size, self.all_head_size)
         self.value = nn.Dense(config.hidden_size, self.all_head_size)
 
-        self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
+        self.dropout = nn.Dropout(p=config.attention_probs_dropout_prob)
         self.position_embedding_type = position_embedding_type or getattr(
             config, "position_embedding_type", "absolute"
         )
@@ -1257,7 +1257,7 @@ class ClapTextSelfOutput(nn.Cell):
         super().__init__()
         self.dense = nn.Dense(config.hidden_size, config.hidden_size)
         self.LayerNorm = LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(p=config.hidden_dropout_prob)
 
     def construct(self, hidden_states: ms.Tensor, input_tensor: ms.Tensor) -> ms.Tensor:
         hidden_states = self.dense(hidden_states)
@@ -1345,7 +1345,7 @@ class ClapTextOutput(nn.Cell):
         super().__init__()
         self.dense = nn.Dense(config.intermediate_size, config.hidden_size)
         self.LayerNorm = LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(p=config.hidden_dropout_prob)
 
     def construct(self, hidden_states: ms.Tensor, input_tensor: ms.Tensor) -> ms.Tensor:
         hidden_states = self.dense(hidden_states)
