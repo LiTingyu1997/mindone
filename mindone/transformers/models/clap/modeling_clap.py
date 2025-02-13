@@ -1574,10 +1574,10 @@ class ClapPreTrainedModel(MSPreTrainedModel):
             )
         elif isinstance(module, ClapModel):
             module.logit_scale_a.set_data(
-                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.weight.shape, dtype=module.weight.dtype)
+                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.logit_scale_a.shape, dtype=module.logit_scale_a.dtype)
             )
             module.logit_scale_t.set_data(
-                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.weight.shape, dtype=module.weight.dtype)
+                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.logit_scale_t.shape, dtype=module.logit_scale_t.dtype)
             )
         elif isinstance(module, nn.Embedding):
             module.embedding_table.set_data(
