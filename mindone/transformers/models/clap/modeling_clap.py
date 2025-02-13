@@ -408,7 +408,7 @@ class ClapAudioSelfAttention(nn.Cell):
         # get pair-wise relative position index for each token inside the window
         coords_h = ops.arange(self.window_size[0])
         coords_w = ops.arange(self.window_size[1])
-        coords = ops.stack(ops.meshgrid([coords_h, coords_w], indexing="ij"))
+        coords = ops.stack(ops.meshgrid(coords_h, coords_w, indexing="ij"))
         coords_flatten = ops.flatten(coords, 1)
         relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]
         relative_coords = relative_coords.permute(1, 2, 0).contiguous()
