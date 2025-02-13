@@ -104,7 +104,7 @@ def _get_pt2ms_mapped_kv(mappings, key_pt, value_pt=None, prefix=""):
     else:
         return key_ms, value_mapping(value_pt)
     
-    
+
 def _convert_state_dict(m, state_dict_pt, prefix=""):
     if not state_dict_pt:
         return state_dict_pt
@@ -435,7 +435,7 @@ class ModuleUtilsMixin:
             # Provided a padding mask of dimensions [batch_size, seq_length]
             # - if the model is a decoder, apply a causal mask in addition to the padding mask
             # - if the model is an encoder, make the mask broadcastable to [batch_size, num_heads, seq_length, seq_length]
-            if self.is_decoder:
+            if self.config.is_decoder:
                 extended_attention_mask = ModuleUtilsMixin.create_extended_attention_mask_for_decoder(
                     input_shape, attention_mask
                 )
@@ -2191,6 +2191,7 @@ class MSPreTrainedModel(nn.Cell, ModuleUtilsMixin, GenerationMixin, PushToHubMix
         model.tie_weights()
 
         loaded_keys = [_get_pt2ms_mappings(model).get(k, (k, None))[0] for k in loaded_keys]
+        loaded_keys = list(filter(None, loaded_keys))
         prefix = model.base_model_prefix
 
         # Retrieve missing & unexpected_keys
