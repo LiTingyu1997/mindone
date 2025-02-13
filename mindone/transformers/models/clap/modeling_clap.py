@@ -409,7 +409,7 @@ class ClapAudioSelfAttention(nn.Cell):
         coords_h = ops.arange(self.window_size[0])
         coords_w = ops.arange(self.window_size[1])
         coords = ops.stack(ops.meshgrid(coords_h, coords_w, indexing="ij"))
-        coords_flatten = ops.flatten(coords, 1)
+        coords_flatten = ops.flatten(coords, start_dim=1)
         relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]
         relative_coords = relative_coords.permute(1, 2, 0).contiguous()
         relative_coords[:, :, 0] += self.window_size[0] - 1
@@ -989,8 +989,8 @@ class ClapAudioEncoder(nn.Cell):
         last_hidden_state = (
             last_hidden_state.permute(0, 1, 3, 2, 4).contiguous().reshape(batch_size, n_channels, c_freq_bin, -1)
         )
-        latent_output = self.avgpool(ops.flatten(last_hidden_state, 2))
-        latent_output = ops.flatten(latent_output, 1)
+        latent_output = self.avgpool(ops.flatten(last_hidden_state, start_dim=2))
+        latent_output = ops.flatten(latent_output, start_dim=1)
 
         if not return_dict:
             return tuple(
