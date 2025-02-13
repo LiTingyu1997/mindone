@@ -849,9 +849,6 @@ class TokenClassifierOutput(ModelOutput):
     logits: ms.Tensor = None
     hidden_states: Optional[Tuple[ms.Tensor, ...]] = None
     attentions: Optional[Tuple[ms.Tensor, ...]] = None
-<<<<<<< HEAD
-=======
-
 
 @dataclass
 class BaseModelOutputWithPast(ModelOutput):
@@ -1022,4 +1019,3 @@ class Seq2SeqSpectrogramOutput(ModelOutput):
     encoder_last_hidden_state: Optional[ms.Tensor] = None
     encoder_hidden_states: Optional[Tuple[ms.Tensor, ...]] = None
     encoder_attentions: Optional[Tuple[ms.Tensor, ...]] = None
->>>>>>> musicldm
