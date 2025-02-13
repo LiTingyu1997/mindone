@@ -1,5 +1,1 @@
-<<<<<<< HEAD
-from . import bert, bit, blip_2, clip, dpt, gemma, gemma2, gpt2, llama, t5, umt5, xlm_roberta
-=======
-from . import bert, bit, blip_2, clip, dpt, gemma, t5, umt5, xlm_roberta, clap
->>>>>>> musicldm
+from . import bert, bit, blip_2, clip, dpt, gemma, gemma2, gpt2, llama, t5, umt5, xlm_roberta, clap, speecht5
