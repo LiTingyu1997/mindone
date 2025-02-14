@@ -3264,9 +3264,9 @@ class HifiGanResidualBlock(nn.Cell):
     def construct(self, hidden_states):
         for conv1, conv2 in zip(self.convs1, self.convs2):
             residual = hidden_states
-            hidden_states = nn.functional.leaky_relu(hidden_states, self.leaky_relu_slope)
+            hidden_states = ops.leaky_relu(hidden_states, self.leaky_relu_slope)
             hidden_states = conv1(hidden_states)
-            hidden_states = nn.functional.leaky_relu(hidden_states, self.leaky_relu_slope)
+            hidden_states = ops.leaky_relu(hidden_states, self.leaky_relu_slope)
             hidden_states = conv2(hidden_states)
             hidden_states = hidden_states + residual
         return hidden_states
@@ -3373,7 +3373,7 @@ class SpeechT5HifiGan(MSPreTrainedModel):
 
         hidden_states = self.conv_pre(hidden_states)
         for i in range(self.num_upsamples):
-            hidden_states = nn.functional.leaky_relu(hidden_states, self.config.leaky_relu_slope)
+            hidden_states = ops.leaky_relu(hidden_states, self.config.leaky_relu_slope)
             hidden_states = self.upsampler[i](hidden_states)
 
             res_state = self.resblocks[i * self.num_kernels](hidden_states)
@@ -3381,7 +3381,7 @@ class SpeechT5HifiGan(MSPreTrainedModel):
                 res_state += self.resblocks[i * self.num_kernels + j](hidden_states)
             hidden_states = res_state / self.num_kernels
 
-        hidden_states = nn.functional.leaky_relu(hidden_states)
+        hidden_states = ops.leaky_relu(hidden_states, 0.01)
         hidden_states = self.conv_post(hidden_states)
         hidden_states = ops.tanh(hidden_states)
 
