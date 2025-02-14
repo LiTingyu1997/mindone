@@ -850,6 +850,7 @@ class TokenClassifierOutput(ModelOutput):
     hidden_states: Optional[Tuple[ms.Tensor, ...]] = None
     attentions: Optional[Tuple[ms.Tensor, ...]] = None
 
+
 @dataclass
 class BaseModelOutputWithPast(ModelOutput):
     """

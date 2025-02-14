@@ -19,23 +19,22 @@ import math
 from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple, Union
 
-import mindspore as ms
-from mindspore import nn, ops, Parameter
-from mindspore.common.initializer import Normal, One, Zero, initializer
-from ....diffusers.models.normalization import LayerNorm
+from transformers.models.clap.configuration_clap import ClapAudioConfig, ClapConfig, ClapTextConfig
+from transformers.utils import ModelOutput, logging
 
+import mindspore as ms
+from mindspore import Parameter, nn, ops
+from mindspore.common.initializer import Normal, One, Zero, initializer
+
+from ....diffusers.models.normalization import LayerNorm
 from ...activations import ACT2FN
+from ...mindspore_utils import apply_chunking_to_forward, find_pruneable_heads_and_indices, prune_linear_layer
 from ...modeling_outputs import (
     BaseModelOutputWithPastAndCrossAttentions,
     BaseModelOutputWithPooling,
     BaseModelOutputWithPoolingAndCrossAttentions,
 )
 from ...modeling_utils import MSPreTrainedModel
-from ...mindspore_utils import apply_chunking_to_forward, find_pruneable_heads_and_indices, prune_linear_layer
-from transformers.utils import ModelOutput, logging
-
-from transformers.models.clap.configuration_clap import ClapAudioConfig, ClapConfig, ClapTextConfig
-
 
 logger = logging.get_logger(__name__)
 
@@ -296,9 +295,7 @@ class ClapAudioPatchEmbed(nn.Cell):
     def __init__(self, config: ClapAudioConfig):
         super().__init__()
         img_size = (config.spec_size, config.spec_size) if isinstance(config.spec_size, int) else config.spec_size
-        patch_size = (
-            (config.patch_size, config.patch_size) if isinstance(config.patch_size, int) else config.patch_size
-        )
+        patch_size = (config.patch_size, config.patch_size) if isinstance(config.patch_size, int) else config.patch_size
         patch_stride = (
             (config.patch_stride, config.patch_stride) if isinstance(config.patch_stride, int) else config.patch_stride
         )
@@ -363,9 +360,7 @@ class ClapAudioPatchEmbed(nn.Cell):
                 local_hidden_states = local_hidden_states.permute((0, 2, 3, 1, 4)).contiguous().flatten(3)
 
                 local_width = local_hidden_states.size(-1)
-                local_hidden_states = ops.pad(
-                    local_hidden_states, (0, output_width - local_width), "constant", 0
-                )
+                local_hidden_states = ops.pad(local_hidden_states, (0, output_width - local_width), "constant", 0)
 
                 global_hidden_states[is_longer_idx] = self.fusion_model(
                     global_hidden_states[is_longer_idx], local_hidden_states
@@ -660,9 +655,7 @@ class ClapAudioLayer(nn.Cell):
         # partition windows
         hidden_states_windows = window_partition(shifted_hidden_states, self.window_size)
         hidden_states_windows = hidden_states_windows.view(-1, self.window_size * self.window_size, channels)
-        attn_mask = self.get_attn_mask(
-            height_pad, width_pad, dtype=hidden_states.dtype
-        )
+        attn_mask = self.get_attn_mask(height_pad, width_pad, dtype=hidden_states.dtype)
 
         attention_outputs = self.attention(
             hidden_states_windows, attn_mask, head_mask, output_attentions=output_attentions
@@ -1110,9 +1103,7 @@ class ClapTextEmbeddings(nn.Cell):
         input_shape = inputs_embeds.shape[:-1]
         sequence_length = input_shape[1]
 
-        position_ids = ops.arange(
-            self.padding_idx + 1, sequence_length + self.padding_idx + 1, dtype=ms.int64
-        )
+        position_ids = ops.arange(self.padding_idx + 1, sequence_length + self.padding_idx + 1, dtype=ms.int64)
         return position_ids.unsqueeze(0).broadcast_to(input_shape)
 
 
@@ -1135,9 +1126,7 @@ class ClapTextSelfAttention(nn.Cell):
         self.value = nn.Dense(config.hidden_size, self.all_head_size)
 
         self.dropout = nn.Dropout(p=config.attention_probs_dropout_prob)
-        self.position_embedding_type = position_embedding_type or getattr(
-            config, "position_embedding_type", "absolute"
-        )
+        self.position_embedding_type = position_embedding_type or getattr(config, "position_embedding_type", "absolute")
         if self.position_embedding_type == "relative_key" or self.position_embedding_type == "relative_key_query":
             self.max_position_embeddings = config.max_position_embeddings
             self.distance_embedding = nn.Embedding(2 * config.max_position_embeddings - 1, self.attention_head_size)
@@ -1203,9 +1192,7 @@ class ClapTextSelfAttention(nn.Cell):
         if self.position_embedding_type == "relative_key" or self.position_embedding_type == "relative_key_query":
             query_length, key_length = query_layer.shape[2], key_layer.shape[2]
             if use_cache:
-                position_ids_l = ms.Tensor(key_length - 1, dtype=ms.int64).view(
-                    -1, 1
-                )
+                position_ids_l = ms.Tensor(key_length - 1, dtype=ms.int64).view(-1, 1)
             else:
                 position_ids_l = ops.arange(query_length, dtype=ms.int64).view(-1, 1)
             position_ids_r = ops.arange(key_length, dtype=ms.int64).view(1, -1)
@@ -1567,17 +1554,33 @@ class ClapPreTrainedModel(MSPreTrainedModel):
 
         if isinstance(module, ClapTextEmbeddings):
             module.position_embeddings.embedding_table.set_data(
-                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.position_embeddings.embedding_table.shape, dtype=module.position_embeddings.embedding_table.dtype)
+                initializer(
+                    Normal(mean=0.0, sigma=factor * 0.02),
+                    shape=module.position_embeddings.embedding_table.shape,
+                    dtype=module.position_embeddings.embedding_table.dtype,
+                )
             )
             module.token_type_embeddings.embedding_table.set_data(
-                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.token_type_embeddings.embedding_table.shape, dtype=module.token_type_embeddings.embedding_table.dtype)
+                initializer(
+                    Normal(mean=0.0, sigma=factor * 0.02),
+                    shape=module.token_type_embeddings.embedding_table.shape,
+                    dtype=module.token_type_embeddings.embedding_table.dtype,
+                )
             )
         elif isinstance(module, ClapModel):
             module.logit_scale_a.set_data(
-                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.logit_scale_a.shape, dtype=module.logit_scale_a.dtype)
+                initializer(
+                    Normal(mean=0.0, sigma=factor * 0.02),
+                    shape=module.logit_scale_a.shape,
+                    dtype=module.logit_scale_a.dtype,
+                )
             )
             module.logit_scale_t.set_data(
-                initializer(Normal(mean=0.0, sigma=factor * 0.02), shape=module.logit_scale_t.shape, dtype=module.logit_scale_t.dtype)
+                initializer(
+                    Normal(mean=0.0, sigma=factor * 0.02),
+                    shape=module.logit_scale_t.shape,
+                    dtype=module.logit_scale_t.dtype,
+                )
             )
         elif isinstance(module, nn.Embedding):
             module.embedding_table.set_data(
@@ -1899,7 +1902,8 @@ class ClapModel(ClapPreTrainedModel):
 
         pooled_output = text_outputs[1] if return_dict is not None else text_outputs.pooler_output
         text_features = self.text_projection(pooled_output)
-        text_features = c(text_features, dim=-1)
+        normalize = ops.L2Normalize(axis=-1, epsilon=1e-12)
+        text_features = normalize(text_features)
 
         return text_features
 
@@ -2111,7 +2115,6 @@ class ClapTextModelWithProjection(ClapPreTrainedModel):
             hidden_states=text_outputs.hidden_states,
             attentions=text_outputs.attentions,
         )
-
 
 
 class ClapAudioModelWithProjection(ClapPreTrainedModel):

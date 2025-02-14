@@ -18,12 +18,15 @@ import math
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
-import mindspore as ms
-from mindspore import nn, ops, Parameter
-from mindspore.common.initializer import Normal, Uniform, HeUniform, Constant, One, Zero, initializer
-from mindspore.nn import BCEWithLogitsLoss, CrossEntropyLoss, L1Loss
-from ....diffusers.models.normalization import LayerNorm
+from transformers.models.speecht5.configuration_speecht5 import SpeechT5Config, SpeechT5HifiGanConfig
+from transformers.utils import logging
 
+import mindspore as ms
+from mindspore import Parameter, nn, ops
+from mindspore.common.initializer import Constant, HeUniform, Normal, One, Uniform, Zero, initializer
+from mindspore.nn import BCEWithLogitsLoss, CrossEntropyLoss, L1Loss
+
+from ....diffusers.models.normalization import LayerNorm
 from ...activations import ACT2FN
 from ...modeling_attn_mask_utils import _prepare_4d_attention_mask, _prepare_4d_causal_attention_mask
 from ...modeling_outputs import (
@@ -34,9 +37,6 @@ from ...modeling_outputs import (
     Seq2SeqSpectrogramOutput,
 )
 from ...modeling_utils import MSPreTrainedModel
-from transformers.utils import logging
-from transformers.models.speecht5.configuration_speecht5 import SpeechT5Config, SpeechT5HifiGanConfig
-
 
 logger = logging.get_logger(__name__)
 
@@ -45,6 +45,7 @@ _HIDDEN_STATES_START_POSITION = 1
 
 # General docstring
 _CONFIG_FOR_DOC = "SpeechT5Config"
+
 
 def pad_sequence(
     sequences: List[ms.Tensor],
@@ -220,9 +221,7 @@ def _compute_mask_indices(
     spec_aug_mask_idxs = np.array(spec_aug_mask_idxs)
 
     # expand masked indices to masked spans
-    spec_aug_mask_idxs = np.broadcast_to(
-        spec_aug_mask_idxs[:, :, None], (batch_size, max_num_masked_span, mask_length)
-    )
+    spec_aug_mask_idxs = np.broadcast_to(spec_aug_mask_idxs[:, :, None], (batch_size, max_num_masked_span, mask_length))
     spec_aug_mask_idxs = spec_aug_mask_idxs.reshape(batch_size, max_num_masked_span * mask_length)
 
     # add offset to the starting indexes so that indexes now create a span
@@ -356,7 +355,6 @@ class SpeechT5SinusoidalPositionalEmbedding(nn.Cell):
             emb[padding_idx, :] = 0
         return emb
 
-     
     def construct(self, input_ids: ms.Tensor, past_key_values_length: int = 0):
         bsz, seq_len = input_ids.shape
         # Create the position ids from the input token ids. Any padded tokens remain padded.
@@ -601,8 +599,7 @@ class SpeechT5SpeechEncoderPrenet(nn.Cell):
         output_lengths = self._get_feat_extract_output_lengths(non_padded_lengths).to(ms.int64)
         batch_size = attention_mask.shape[0]
 
-        attention_mask = ops.zeros(
-            (batch_size, feature_vector_length), dtype=attention_mask.dtype)
+        attention_mask = ops.zeros((batch_size, feature_vector_length), dtype=attention_mask.dtype)
         # these two operations makes sure that all values before the output lengths idxs are attended to
         attention_mask[(ops.arange(attention_mask.shape[0]), output_lengths - 1)] = 1
         attention_mask = attention_mask.flip([-1]).cumsum(-1).flip([-1]).bool()
@@ -1241,7 +1238,11 @@ class SpeechT5PreTrainedModel(MSPreTrainedModel):
         """Initialize the weights"""
         if isinstance(module, SpeechT5PositionalConvEmbedding):
             module.conv.weight.set_data(
-                initializer(Normal(mean=0.0, sigma=2 * math.sqrt(1 / (module.conv.kernel_size[0] * module.conv.in_channels))), shape=module.weight.shape, dtype=module.weight.dtype)
+                initializer(
+                    Normal(mean=0.0, sigma=2 * math.sqrt(1 / (module.conv.kernel_size[0] * module.conv.in_channels))),
+                    shape=module.weight.shape,
+                    dtype=module.weight.dtype,
+                )
             )
             module.conv.bias.set_data(
                 initializer(Constant(0), shape=module.conv.bias.shape, dtype=module.conv.bias.dtype)
@@ -1256,7 +1257,11 @@ class SpeechT5PreTrainedModel(MSPreTrainedModel):
             )
         elif isinstance(module, nn.Dense):
             module.weight.set_data(
-                initializer(Normal(mean=0.0, sigma=self.config.initializer_range), shape=module.weight.shape, dtype=module.weight.dtype)
+                initializer(
+                    Normal(mean=0.0, sigma=self.config.initializer_range),
+                    shape=module.weight.shape,
+                    dtype=module.weight.dtype,
+                )
             )
             if module.bias is not None:
                 module.bias.set_data(initializer(Zero(), shape=module.bias.shape, dtype=module.bias.dtype))
@@ -1268,8 +1273,8 @@ class SpeechT5PreTrainedModel(MSPreTrainedModel):
             if module.bias is not None:
                 k = math.sqrt(module.groups / (module.in_channels * module.kernel_size[0]))
                 module.bias.set_data(
-                initializer(Uniform(k), shape=module.projection.bias.shape, dtype=module.projection.bias.dtype)
-            )
+                    initializer(Uniform(k), shape=module.projection.bias.shape, dtype=module.projection.bias.dtype)
+                )
         elif isinstance(module, nn.Embedding):
             module.embedding_table.set_data(
                 initializer(
@@ -1280,6 +1285,7 @@ class SpeechT5PreTrainedModel(MSPreTrainedModel):
             )
             if module.padding_idx is not None:
                 module.embedding_table[module.padding_idx] = 0
+
 
 class SpeechT5Encoder(SpeechT5PreTrainedModel):
     """
@@ -1890,9 +1896,7 @@ class SpeechT5GuidedMultiheadAttentionLoss(nn.Cell):
         self.sigma = config.guided_attention_loss_sigma
         self.scale = config.guided_attention_loss_scale
 
-    def construct(
-        self, attentions: ms.Tensor, input_masks: ops.Tensor, output_masks: ops.Tensor
-    ) -> ms.Tensor:
+    def construct(self, attentions: ms.Tensor, input_masks: ops.Tensor, output_masks: ops.Tensor) -> ms.Tensor:
         """
         Compute the attention loss.
 
@@ -2124,6 +2128,7 @@ SPEECHT5_INPUTS_DOCSTRING = r"""
         return_dict (`bool`, *optional*):
             Whether or not to return a [`~utils.ModelOutput`] instead of a plain tuple.
 """
+
 
 class SpeechT5Model(SpeechT5PreTrainedModel):
     def __init__(
@@ -2476,9 +2481,7 @@ class SpeechT5ForSpeechToText(SpeechT5PreTrainedModel):
     def _reorder_cache(past_key_values, beam_idx):
         reordered_past = ()
         for layer_past in past_key_values:
-            reordered_past += (
-                tuple(past_state.index_select(0, beam_idx) for past_state in layer_past),
-            )
+            reordered_past += (tuple(past_state.index_select(0, beam_idx) for past_state in layer_past),)
         return reordered_past
 
 
@@ -2774,7 +2777,6 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
             encoder_attentions=outputs.encoder_attentions,
         )
 
-     
     def generate(
         self,
         input_ids: ms.Tensor,
@@ -2866,7 +2868,6 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
             return_output_lengths,
         )
 
-     
     def generate_speech(
         self,
         input_ids: ms.Tensor,
@@ -3103,7 +3104,6 @@ class SpeechT5ForSpeechToSpeech(SpeechT5PreTrainedModel):
             encoder_attentions=outputs.encoder_attentions,
         )
 
-     
     def generate_speech(
         self,
         input_values: ms.Tensor,
@@ -3322,7 +3322,11 @@ class SpeechT5HifiGan(MSPreTrainedModel):
         """Initialize the weights."""
         if isinstance(module, (nn.Dense, nn.Conv1d)):
             module.weight.set_data(
-                initializer(Normal(mean=0.0, sigma=self.config.initializer_range), shape=module.weight.shape, dtype=module.weight.dtype)
+                initializer(
+                    Normal(mean=0.0, sigma=self.config.initializer_range),
+                    shape=module.weight.shape,
+                    dtype=module.weight.dtype,
+                )
             )
             if module.bias is not None:
                 module.bias.set_data(initializer(Zero(), shape=module.bias.shape, dtype=module.bias.dtype))

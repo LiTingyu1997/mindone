@@ -15,24 +15,19 @@
 import inspect
 from typing import Any, Callable, Dict, List, Optional, Union
 
+import librosa
 import numpy as np
+from transformers import RobertaTokenizer, RobertaTokenizerFast
+
 import mindspore as ms
 from mindspore import ops
-from transformers import RobertaTokenizer, RobertaTokenizerFast
-from ....transformers import (
-    ClapFeatureExtractor,
-    ClapModel,
-    ClapTextModelWithProjection,
-    SpeechT5HifiGan,
-)
 
+from ....transformers import ClapFeatureExtractor, ClapModel, ClapTextModelWithProjection, SpeechT5HifiGan
 from ...models import AutoencoderKL, UNet2DConditionModel
 from ...schedulers import KarrasDiffusionSchedulers
 from ...utils import logging
 from ...utils.mindspore_utils import randn_tensor
 from ..pipeline_utils import AudioPipelineOutput, DiffusionPipeline, StableDiffusionMixin
-
-import librosa
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
@@ -154,12 +149,8 @@ class MusicLDMPipeline(DiffusionPipeline, StableDiffusionMixin):
             attention_mask = ms.Tensor(text_inputs.attention_mask)
             untruncated_ids = ms.Tensor(self.tokenizer(prompt, padding="longest", return_tensors="np").input_ids)
 
-            if untruncated_ids.shape[-1] >= text_input_ids.shape[-1] and not ops.equal(
-                text_input_ids, untruncated_ids
-            ):
-                removed_text = self.tokenizer.batch_decode(
-                    untruncated_ids[:, self.tokenizer.model_max_length - 1 : -1]
-                )
+            if untruncated_ids.shape[-1] >= text_input_ids.shape[-1] and not ops.equal(text_input_ids, untruncated_ids):
+                removed_text = self.tokenizer.batch_decode(untruncated_ids[:, self.tokenizer.model_max_length - 1 : -1])
                 logger.warning(
                     "The following part of your input was truncated because CLAP can only handle sequences up to"
                     f" {self.tokenizer.model_max_length} tokens: {removed_text}"
@@ -257,9 +248,11 @@ class MusicLDMPipeline(DiffusionPipeline, StableDiffusionMixin):
         resampled_audio = librosa.resample(
             audio.numpy(), orig_sr=self.vocoder.config.sampling_rate, target_sr=self.feature_extractor.sampling_rate
         )
-        inputs["input_features"] = ms.Tensor(self.feature_extractor(
-            list(resampled_audio), return_tensors="np", sampling_rate=self.feature_extractor.sampling_rate
-        ).input_features.type(dtype))
+        inputs["input_features"] = ms.Tensor(
+            self.feature_extractor(
+                list(resampled_audio), return_tensors="np", sampling_rate=self.feature_extractor.sampling_rate
+            ).input_features.type(dtype)
+        )
         inputs = inputs
 
         # compute the audio-text similarity score using the CLAP model

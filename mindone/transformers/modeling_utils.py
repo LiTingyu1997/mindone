@@ -103,7 +103,7 @@ def _get_pt2ms_mapped_kv(mappings, key_pt, value_pt=None, prefix=""):
         return key_ms, None
     else:
         return key_ms, value_mapping(value_pt)
-    
+
 
 def _convert_state_dict(m, state_dict_pt, prefix=""):
     if not state_dict_pt:
