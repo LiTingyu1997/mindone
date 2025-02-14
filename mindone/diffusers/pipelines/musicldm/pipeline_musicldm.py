@@ -536,7 +536,7 @@ class MusicLDMPipeline(DiffusionPipeline, StableDiffusionMixin):
                     noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
                 # compute the previous noisy sample x_t -> x_t-1
-                latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs).prev_sample
+                latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs)[0]
 
                 # call the callback, if provided
                 if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
@@ -544,8 +544,6 @@ class MusicLDMPipeline(DiffusionPipeline, StableDiffusionMixin):
                     if callback is not None and i % callback_steps == 0:
                         step_idx = i // getattr(self.scheduler, "order", 1)
                         callback(step_idx, t, latents)
-
-        self.maybe_free_model_hooks()
 
         # 8. Post-processing
         if not output_type == "latent":
