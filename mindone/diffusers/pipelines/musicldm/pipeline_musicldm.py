@@ -548,7 +548,7 @@ class MusicLDMPipeline(DiffusionPipeline, StableDiffusionMixin):
         # 8. Post-processing
         if not output_type == "latent":
             latents = 1 / self.vae.config.scaling_factor * latents
-            mel_spectrogram = self.vae.decode(latents).sample
+            mel_spectrogram = self.vae.decode(latents)[0]
         else:
             return AudioPipelineOutput(audios=latents)
 
