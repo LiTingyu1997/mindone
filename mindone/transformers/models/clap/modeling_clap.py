@@ -120,7 +120,7 @@ def create_position_ids_from_input_ids(input_ids, padding_idx, past_key_values_l
 # https://sachinruk.github.io/blog/pytorch/pytorch%20lightning/loss%20function/gpu/2021/03/07/CLIP.html#CLIP-loss-function
 def contrastive_loss(logits: ms.Tensor) -> ms.Tensor:
     labels = ops.arange(len(logits))
-    return nn.functional.cross_entropy(logits, labels)
+    return ops.cross_entropy(logits, labels)
 
 
 @dataclass
@@ -619,7 +619,7 @@ class ClapAudioLayer(nn.Cell):
         pad_right = (self.window_size - width % self.window_size) % self.window_size
         pad_bottom = (self.window_size - height % self.window_size) % self.window_size
         pad_values = (0, 0, 0, pad_right, 0, pad_bottom)
-        hidden_states = nn.functional.pad(hidden_states, pad_values)
+        hidden_states = ops.pad(hidden_states, pad_values)
         return hidden_states, pad_values
 
     def construct(
@@ -773,7 +773,7 @@ class ClapAudioPatchMerging(nn.Cell):
         should_pad = (height % 2 == 1) or (width % 2 == 1)
         if should_pad:
             pad_values = (0, 0, 0, width % 2, 0, height % 2)
-            input_feature = nn.functional.pad(input_feature, pad_values)
+            input_feature = ops.pad(input_feature, pad_values)
 
         return input_feature
 
@@ -859,11 +859,11 @@ class ClapAudioEncoder(nn.Cell):
 
         # to avoid bicubic zero error
         if time_length < spec_width:
-            normalized_input_features = nn.functional.interpolate(
+            normalized_input_features = ops.interpolate(
                 normalized_input_features, (spec_width, freq_length), mode="bicubic", align_corners=True
             )
         if freq_length < spec_heigth:
-            normalized_input_features = nn.functional.interpolate(
+            normalized_input_features = ops.interpolate(
                 normalized_input_features, (time_length, spec_heigth), mode="bicubic", align_corners=True
             )
 
