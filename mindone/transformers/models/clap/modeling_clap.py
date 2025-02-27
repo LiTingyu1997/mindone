@@ -1816,7 +1816,6 @@ class ClapTextModel(ClapPreTrainedModel):
                 return (sequence_output, pooled_output) + encoder_outputs[1:]
             else:
                 return (sequence_output,) + encoder_outputs[1:]
-        
 
         return BaseModelOutputWithPoolingAndCrossAttentions(
             last_hidden_state=sequence_output,
