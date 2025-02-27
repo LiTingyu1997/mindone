@@ -2363,7 +2363,7 @@ class SpeechT5ForSpeechToText(SpeechT5PreTrainedModel):
         Example:
 
         ```python
-        >>> from transformers import SpeechT5Processor, SpeechT5ForSpeechToText
+        >>> from mindone.transformers import SpeechT5Processor, SpeechT5ForSpeechToText
         >>> from datasets import load_dataset
 
         >>> dataset = load_dataset(
@@ -2376,7 +2376,7 @@ class SpeechT5ForSpeechToText(SpeechT5PreTrainedModel):
         >>> model = SpeechT5ForSpeechToText.from_pretrained("microsoft/speecht5_asr")
 
         >>> # audio file is decoded on the fly
-        >>> inputs = processor(audio=dataset[0]["audio"]["array"], sampling_rate=sampling_rate, return_tensors="pt")
+        >>> inputs = processor(audio=dataset[0]["audio"]["array"], sampling_rate=sampling_rate, return_tensors="np")
         >>> predicted_ids = model.generate(**inputs, max_length=100)
 
         >>> # transcribe speech
@@ -2386,7 +2386,7 @@ class SpeechT5ForSpeechToText(SpeechT5PreTrainedModel):
         ```
 
         ```python
-        >>> inputs["labels"] = processor(text_target=dataset[0]["text"], return_tensors="pt").input_ids
+        >>> inputs["labels"] = processor(text_target=dataset[0]["text"], return_tensors="np").input_ids
 
         >>> # compute loss
         >>> loss = model(**inputs).loss
@@ -2702,14 +2702,14 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
         Example:
 
         ```python
-        >>> from transformers import SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan, set_seed
+        >>> from mindone.transformers import SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan, set_seed
         >>> import torch
 
         >>> processor = SpeechT5Processor.from_pretrained("microsoft/speecht5_tts")
         >>> model = SpeechT5ForTextToSpeech.from_pretrained("microsoft/speecht5_tts")
         >>> vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan")
 
-        >>> inputs = processor(text="Hello, my dog is cute", return_tensors="pt")
+        >>> inputs = processor(text="Hello, my dog is cute", return_tensors="np")
         >>> speaker_embeddings = ops.zeros((1, 512))  # or load xvectors from a file
 
         >>> set_seed(555)  # make deterministic
@@ -3032,7 +3032,7 @@ class SpeechT5ForSpeechToSpeech(SpeechT5PreTrainedModel):
         Example:
 
         ```python
-        >>> from transformers import SpeechT5Processor, SpeechT5ForSpeechToSpeech, SpeechT5HifiGan, set_seed
+        >>> from mindone.transformers import SpeechT5Processor, SpeechT5ForSpeechToSpeech, SpeechT5HifiGan, set_seed
         >>> from datasets import load_dataset
         >>> import torch
 
@@ -3047,7 +3047,7 @@ class SpeechT5ForSpeechToSpeech(SpeechT5PreTrainedModel):
         >>> vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan")
 
         >>> # audio file is decoded on the fly
-        >>> inputs = processor(audio=dataset[0]["audio"]["array"], sampling_rate=sampling_rate, return_tensors="pt")
+        >>> inputs = processor(audio=dataset[0]["audio"]["array"], sampling_rate=sampling_rate, return_tensors="np")
 
         >>> speaker_embeddings = ops.zeros((1, 512))  # or load xvectors from a file
 

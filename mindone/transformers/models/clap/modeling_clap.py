@@ -889,7 +889,7 @@ class ClapAudioEncoder(nn.Cell):
         output_hidden_states: Optional[bool] = False,
         output_hidden_states_before_downsampling: Optional[bool] = False,
         always_partition: Optional[bool] = False,
-        return_dict: Optional[bool] = True,
+        return_dict: Optional[bool] = False,
     ) -> Union[Tuple, ClapAudioModelOutput]:
         input_features = input_features.swapaxes(1, 3)
         normalized_input_features = self.batch_norm(input_features)
@@ -1447,7 +1447,7 @@ class ClapTextEncoder(nn.Cell):
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = False,
         output_hidden_states: Optional[bool] = False,
-        return_dict: Optional[bool] = True,
+        return_dict: Optional[bool] = False,
     ) -> Union[Tuple[ms.Tensor], BaseModelOutputWithPastAndCrossAttentions]:
         all_hidden_states = () if output_hidden_states else None
         all_self_attentions = () if output_attentions else None
@@ -1621,7 +1621,7 @@ class ClapAudioModel(ClapPreTrainedModel):
         is_longer: Optional[ms.Tensor] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+        return_dict: Optional[bool] = False,
     ) -> Union[Tuple, BaseModelOutputWithPooling]:
         r"""
         Returns:
@@ -1630,7 +1630,7 @@ class ClapAudioModel(ClapPreTrainedModel):
 
         ```python
         >>> from datasets import load_dataset
-        >>> from transformers import AutoProcessor, ClapAudioModel
+        >>> from mindone.transformers import AutoProcessor, ClapAudioModel
 
         >>> dataset = load_dataset("hf-internal-testing/ashraq-esc50-1-dog-example")
         >>> audio_sample = dataset["train"]["audio"][0]["array"]
@@ -1638,7 +1638,7 @@ class ClapAudioModel(ClapPreTrainedModel):
         >>> model = ClapAudioModel.from_pretrained("laion/clap-htsat-fused")
         >>> processor = AutoProcessor.from_pretrained("laion/clap-htsat-fused")
 
-        >>> inputs = processor(audios=audio_sample, return_tensors="pt")
+        >>> inputs = processor(audios=audio_sample, return_tensors="np")
 
         >>> outputs = model(**inputs)
         >>> last_hidden_state = outputs.last_hidden_state
@@ -1708,7 +1708,7 @@ class ClapTextModel(ClapPreTrainedModel):
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+        return_dict: Optional[bool] = False,
     ) -> Union[Tuple[ms.Tensor], BaseModelOutputWithPoolingAndCrossAttentions]:
         r"""
         encoder_hidden_states  (`ms.Tensor` of shape `(batch_size, sequence_length, hidden_size)`, *optional*):
@@ -1870,7 +1870,7 @@ class ClapModel(ClapPreTrainedModel):
         position_ids: Optional[ms.Tensor] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+        return_dict: Optional[bool] = False,
     ) -> ms.Tensor:
         r"""
         Returns:
@@ -1880,12 +1880,12 @@ class ClapModel(ClapPreTrainedModel):
         Examples:
 
         ```python
-        >>> from transformers import AutoTokenizer, ClapModel
+        >>> from mindone.transformers import AutoTokenizer, ClapModel
 
         >>> model = ClapModel.from_pretrained("laion/clap-htsat-unfused")
         >>> tokenizer = AutoTokenizer.from_pretrained("laion/clap-htsat-unfused")
 
-        >>> inputs = tokenizer(["the sound of a cat", "the sound of a dog"], padding=True, return_tensors="pt")
+        >>> inputs = tokenizer(["the sound of a cat", "the sound of a dog"], padding=True, return_tensors="np")
         >>> text_features = model.get_text_features(**inputs)
         ```"""
         # Use CLAP model's config for some fields (if specified) instead of those of audio & text components.
@@ -1918,7 +1918,7 @@ class ClapModel(ClapPreTrainedModel):
         attention_mask: Optional[ms.Tensor] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+        return_dict: Optional[bool] = False,
     ) -> ms.Tensor:
         r"""
         Returns:
@@ -1928,13 +1928,13 @@ class ClapModel(ClapPreTrainedModel):
         Examples:
 
         ```python
-        >>> from transformers import AutoFeatureExtractor, ClapModel
-        >>> import torch
+        >>> from mindone.transformers import AutoFeatureExtractor, ClapModel
+        >>> from mindspore import ops
 
         >>> model = ClapModel.from_pretrained("laion/clap-htsat-unfused")
         >>> feature_extractor = AutoFeatureExtractor.from_pretrained("laion/clap-htsat-unfused")
         >>> random_audio = ops.rand((16_000))
-        >>> inputs = feature_extractor(random_audio, return_tensors="pt")
+        >>> inputs = feature_extractor(random_audio, return_tensors="np")
         >>> audio_features = model.get_audio_features(**inputs)
         ```"""
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
@@ -1967,7 +1967,7 @@ class ClapModel(ClapPreTrainedModel):
         return_loss: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+        return_dict: Optional[bool] = False,
     ) -> Union[Tuple, ClapOutput]:
         r"""
         Returns:
@@ -1976,7 +1976,7 @@ class ClapModel(ClapPreTrainedModel):
 
         ```python
         >>> from datasets import load_dataset
-        >>> from transformers import AutoProcessor, ClapModel
+        >>> from mindone.transformers import AutoProcessor, ClapModel
 
         >>> dataset = load_dataset("hf-internal-testing/ashraq-esc50-1-dog-example")
         >>> audio_sample = dataset["train"]["audio"][0]["array"]
@@ -1986,7 +1986,7 @@ class ClapModel(ClapPreTrainedModel):
 
         >>> input_text = ["Sound of a dog", "Sound of vaccum cleaner"]
 
-        >>> inputs = processor(text=input_text, audios=audio_sample, return_tensors="pt", padding=True)
+        >>> inputs = processor(text=input_text, audios=audio_sample, return_tensors="np", padding=True)
 
         >>> outputs = model(**inputs)
         >>> logits_per_audio = outputs.logits_per_audio  # this is the audio-text similarity score
@@ -2076,7 +2076,7 @@ class ClapTextModelWithProjection(ClapPreTrainedModel):
         position_ids: Optional[ms.Tensor] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+        return_dict: Optional[bool] = False,
     ) -> Union[Tuple, ClapTextModelOutput]:
         r"""
         Returns:
@@ -2084,12 +2084,12 @@ class ClapTextModelWithProjection(ClapPreTrainedModel):
         Examples:
 
         ```python
-        >>> from transformers import AutoTokenizer, ClapTextModelWithProjection
+        >>> from mindone.transformers import AutoTokenizer, ClapTextModelWithProjection
 
         >>> model = ClapTextModelWithProjection.from_pretrained("laion/clap-htsat-unfused")
         >>> tokenizer = AutoTokenizer.from_pretrained("laion/clap-htsat-unfused")
 
-        >>> inputs = tokenizer(["a sound of a cat", "a sound of a dog"], padding=True, return_tensors="pt")
+        >>> inputs = tokenizer(["a sound of a cat", "a sound of a dog"], padding=True, return_tensors="np")
 
         >>> outputs = model(**inputs)
         >>> text_embeds = outputs.text_embeds
@@ -2141,7 +2141,7 @@ class ClapAudioModelWithProjection(ClapPreTrainedModel):
         is_longer: Optional[ms.Tensor] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+        return_dict: Optional[bool] = False,
     ) -> Union[Tuple, ClapAudioModelOutput]:
         r"""
         Returns:
@@ -2150,7 +2150,7 @@ class ClapAudioModelWithProjection(ClapPreTrainedModel):
 
         ```python
         >>> from datasets import load_dataset
-        >>> from transformers import ClapAudioModelWithProjection, ClapProcessor
+        >>> from mindone.transformers import ClapAudioModelWithProjection, ClapProcessor
 
         >>> model = ClapAudioModelWithProjection.from_pretrained("laion/clap-htsat-fused")
         >>> processor = ClapProcessor.from_pretrained("laion/clap-htsat-fused")
@@ -2158,7 +2158,7 @@ class ClapAudioModelWithProjection(ClapPreTrainedModel):
         >>> dataset = load_dataset("hf-internal-testing/ashraq-esc50-1-dog-example")
         >>> audio_sample = dataset["train"]["audio"][0]["array"]
 
-        >>> inputs = processor(audios=audio_sample, return_tensors="pt")
+        >>> inputs = processor(audios=audio_sample, return_tensors="np")
         >>> outputs = model(**inputs)
         >>> audio_embeds = outputs.audio_embeds
         ```"""
