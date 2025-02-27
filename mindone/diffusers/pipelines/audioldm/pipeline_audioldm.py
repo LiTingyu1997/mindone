@@ -164,7 +164,7 @@ class AudioLDMPipeline(DiffusionPipeline, StableDiffusionMixin):
             prompt_embeds = prompt_embeds.text_embeds
             # additional L_2 normalization over each hidden-state
             normalize = ops.L2Normalize(axis=-1, epsilon=1e-12)
-            text_features = normalize(prompt_embeds)
+            prompt_embeds = normalize(prompt_embeds)
 
         prompt_embeds = prompt_embeds.to(dtype=self.text_encoder.dtype)
 
@@ -216,7 +216,7 @@ class AudioLDMPipeline(DiffusionPipeline, StableDiffusionMixin):
             negative_prompt_embeds = negative_prompt_embeds.text_embeds
             # additional L_2 normalization over each hidden-state
             normalize = ops.L2Normalize(axis=-1, epsilon=1e-12)
-            text_features = normalize(negative_prompt_embeds)
+            negative_prompt_embeds = normalize(negative_prompt_embeds)
 
         if do_classifier_free_guidance:
             # duplicate unconditional embeddings for each generation per prompt, using mps friendly method

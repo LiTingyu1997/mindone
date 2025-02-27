@@ -375,7 +375,7 @@ class ClapAudioPatchEmbed(nn.Cell):
             hidden_states = self.proj(hidden_states)
 
         if self.flatten:
-            hidden_states = hidden_states.flatten(2).swapaxes(1, 2)
+            hidden_states = hidden_states.flatten(start_dim=2).swapaxes(1, 2)
         hidden_states = self.norm(hidden_states)
         return hidden_states
 
@@ -1812,7 +1812,11 @@ class ClapTextModel(ClapPreTrainedModel):
         pooled_output = self.pooler(sequence_output) if self.pooler is not None else None
 
         if not return_dict:
-            return (sequence_output, pooled_output) + encoder_outputs[1:]
+            if pooled_output is not None:
+                return (sequence_output, pooled_output) + encoder_outputs[1:]
+            else:
+                return (sequence_output,) + encoder_outputs[1:]
+        
 
         return BaseModelOutputWithPoolingAndCrossAttentions(
             last_hidden_state=sequence_output,
