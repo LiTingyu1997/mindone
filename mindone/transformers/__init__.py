@@ -1,5 +1,4 @@
 __version__ = "4.42.4"
-
 # Feature Extractor
 from .feature_extraction_utils import BatchFeature, FeatureExtractionMixin
 from .image_processing_base import ImageProcessingMixin
@@ -71,6 +70,13 @@ from .models.speecht5 import (
     SpeechT5HifiGan,
     SpeechT5Model,
     SpeechT5PreTrainedModel,
+)
+from .models.phi3 import (
+    Phi3ForCausalLM,
+    Phi3ForSequenceClassification,
+    Phi3ForTokenClassification,
+    Phi3Model,
+    Phi3PreTrainedModel,
 )
 from .models.t5 import (
     T5_PRETRAINED_MODEL_ARCHIVE_LIST,
