@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 import numpy as np
 import mindspore as ms
-from mindspore import nn, ops
+from mindspore import ops
 from ....transformers import ClapTextModelWithProjection, SpeechT5HifiGan
 from transformers import RobertaTokenizer, RobertaTokenizerFast
 
@@ -161,7 +161,7 @@ class AudioLDMPipeline(DiffusionPipeline, StableDiffusionMixin):
                 text_input_ids,
                 attention_mask=attention_mask,
             )
-            prompt_embeds = prompt_embeds.text_embeds
+            prompt_embeds = prompt_embeds[0]
             # additional L_2 normalization over each hidden-state
             normalize = ops.L2Normalize(axis=-1, epsilon=1e-12)
             prompt_embeds = normalize(prompt_embeds)
@@ -213,7 +213,7 @@ class AudioLDMPipeline(DiffusionPipeline, StableDiffusionMixin):
                 uncond_input_ids,
                 attention_mask=attention_mask,
             )
-            negative_prompt_embeds = negative_prompt_embeds.text_embeds
+            negative_prompt_embeds = negative_prompt_embeds[0]
             # additional L_2 normalization over each hidden-state
             normalize = ops.L2Normalize(axis=-1, epsilon=1e-12)
             negative_prompt_embeds = normalize(negative_prompt_embeds)
@@ -236,7 +236,7 @@ class AudioLDMPipeline(DiffusionPipeline, StableDiffusionMixin):
 
     def decode_latents(self, latents):
         latents = 1 / self.vae.config.scaling_factor * latents
-        mel_spectrogram = self.vae.decode(latents).sample
+        mel_spectrogram = self.vae.decode(latents)[0]
         return mel_spectrogram
 
     def mel_spectrogram_to_waveform(self, mel_spectrogram):
@@ -245,7 +245,7 @@ class AudioLDMPipeline(DiffusionPipeline, StableDiffusionMixin):
 
         waveform = self.vocoder(mel_spectrogram)
         # we always cast to float32 as this does not cause significant overhead and is compatible with bfloat16
-        waveform = waveform.cpu().float()
+        waveform = waveform.float()
         return waveform
 
     # Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_extra_step_kwargs
@@ -507,7 +507,7 @@ class AudioLDMPipeline(DiffusionPipeline, StableDiffusionMixin):
                     encoder_hidden_states=None,
                     class_labels=prompt_embeds,
                     cross_attention_kwargs=cross_attention_kwargs,
-                ).sample
+                )[0]
 
                 # perform guidance
                 if do_classifier_free_guidance:
@@ -515,7 +515,7 @@ class AudioLDMPipeline(DiffusionPipeline, StableDiffusionMixin):
                     noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
                 # compute the previous noisy sample x_t -> x_t-1
-                latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs).prev_sample
+                latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs)[0]
 
                 # call the callback, if provided
                 if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
