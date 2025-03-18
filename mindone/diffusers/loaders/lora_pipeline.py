@@ -20,8 +20,6 @@ from huggingface_hub.utils import validate_hf_hub_args
 import mindspore as ms
 from mindspore import nn, ops
 
-from mindone.transformers import CLIPTextModel, CLIPTextModelWithProjection
-
 from ..utils import deprecate, logging
 from .lora_base import (  # noqa
     LORA_WEIGHT_NAME,
@@ -1779,9 +1777,7 @@ class FluxLoraLoaderMixin(LoraBaseMixin):
                         new_value = int(current_param_weight.shape[1])
                         old_value = getattr(transformer.config, attribute_name)
                         setattr(transformer.config, attribute_name, new_value)
-                        logger.info(
-                            f"Set the {attribute_name} attribute of the model to {new_value} from {old_value}."
-                        )
+                        logger.info(f"Set the {attribute_name} attribute of the model to {new_value} from {old_value}.")
 
     @classmethod
     def _maybe_expand_transformer_param_shape_or_error_(
@@ -1862,7 +1858,7 @@ class FluxLoraLoaderMixin(LoraBaseMixin):
                     new_weight = ops.zeros_like(expanded_module.weight.data, dtype=module_weight.dtype)
                     slices = tuple(slice(0, dim) for dim in module_weight.shape)
                     new_weight[slices] = module_weight
-                    tmp_state_dict = {"weight": new_weight}
+                    tmp_state_dict = {"weight": ms.Parameter(new_weight)}
                     if module_bias is not None:
                         tmp_state_dict["bias"] = module_bias
                     ms.load_param_into_net(expanded_module, tmp_state_dict, strict_load=True)
