@@ -1044,7 +1044,7 @@ class WhisperEncoder(WhisperPreTrainedModel):
         inputs_embeds = mint.nn.functional.gelu(self.conv2(inputs_embeds))
 
         inputs_embeds = inputs_embeds.permute(0, 2, 1)
-        embed_pos = self.embed_positions.weight
+        embed_pos = self.embed_positions.embedding_table
 
         hidden_states = inputs_embeds + embed_pos
         hidden_states = mint.nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
