@@ -283,7 +283,7 @@ class WhisperAttention(nn.Cell):
         # for the decoder
         is_cross_attention = key_value_states is not None
 
-        bsz, tgt_len, _ = hidden_states.size()
+        bsz, tgt_len, _ = hidden_states.shape
 
         # get query proj
         query_states = self.q_proj(hidden_states) * self.scaling
@@ -332,16 +332,16 @@ class WhisperAttention(nn.Cell):
         src_len = key_states.size(1)
         attn_weights = mint.bmm(query_states, key_states.transpose(1, 2))
 
-        if attn_weights.size() != (bsz * self.num_heads, tgt_len, src_len):
+        if attn_weights.shape != (bsz * self.num_heads, tgt_len, src_len):
             raise ValueError(
                 f"Attention weights should be of size {(bsz * self.num_heads, tgt_len, src_len)}, but is"
-                f" {attn_weights.size()}"
+                f" {attn_weights.shape}"
             )
 
         if attention_mask is not None:
-            if attention_mask.size() != (bsz, 1, tgt_len, src_len):
+            if attention_mask.shape != (bsz, 1, tgt_len, src_len):
                 raise ValueError(
-                    f"Attention mask should be of size {(bsz, 1, tgt_len, src_len)}, but is {attention_mask.size()}"
+                    f"Attention mask should be of size {(bsz, 1, tgt_len, src_len)}, but is {attention_mask.shape}"
                 )
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
@@ -349,10 +349,10 @@ class WhisperAttention(nn.Cell):
         attn_weights = mint.mint.nn.functional.softmax(attn_weights, dim=-1)
 
         if layer_head_mask is not None:
-            if layer_head_mask.size() != (self.num_heads,):
+            if layer_head_mask.shape != (self.num_heads,):
                 raise ValueError(
                     f"Head mask for a single layer should be of size {(self.num_heads,)}, but is"
-                    f" {layer_head_mask.size()}"
+                    f" {layer_head_mask.shape}"
                 )
             attn_weights = layer_head_mask.view(1, -1, 1, 1) * attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
@@ -371,10 +371,10 @@ class WhisperAttention(nn.Cell):
 
         attn_output = mint.bmm(attn_probs, value_states)
 
-        if attn_output.size() != (bsz * self.num_heads, tgt_len, self.head_dim):
+        if attn_output.shape != (bsz * self.num_heads, tgt_len, self.head_dim):
             raise ValueError(
                 f"`attn_output` should be of size {(bsz * self.num_heads, tgt_len, self.head_dim)}, but is"
-                f" {attn_output.size()}"
+                f" {attn_output.shape}"
             )
 
         attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
@@ -426,7 +426,7 @@ class WhisperAttention(nn.Cell):
 #         # for the decoder
 #         is_cross_attention = key_value_states is not None
 
-#         bsz, q_len, _ = hidden_states.size()
+#         bsz, q_len, _ = hidden_states.shape
 
 #         # get query proj
 #         query_states = self._reshape(self.q_proj(hidden_states), -1, bsz)
@@ -640,7 +640,7 @@ class WhisperSdpaAttention(WhisperAttention):
         # for the decoder
         is_cross_attention = key_value_states is not None
 
-        bsz, tgt_len, _ = hidden_states.size()
+        bsz, tgt_len, _ = hidden_states.shape
 
         # get query proj
         query_states = self.q_proj(hidden_states)
@@ -699,10 +699,10 @@ class WhisperSdpaAttention(WhisperAttention):
             is_causal=is_causal,
         )
 
-        if attn_output.size() != (bsz, self.num_heads, tgt_len, self.head_dim):
+        if attn_output.shape != (bsz, self.num_heads, tgt_len, self.head_dim):
             raise ValueError(
                 f"`attn_output` should be of size {(bsz, self.num_heads, tgt_len, self.head_dim)}, but is"
-                f" {attn_output.size()}"
+                f" {attn_output.shape}"
             )
 
         attn_output = attn_output.transpose(1, 2)
@@ -1054,9 +1054,9 @@ class WhisperEncoder(WhisperPreTrainedModel):
 
         # check if head_mask has a correct number of layers specified if desired
         if head_mask is not None:
-            assert head_mask.size()[0] == (
+            assert head_mask.shape[0] == (
                 len(self.layers)
-            ), f"The head_mask should be specified for {len(self.layers)} layers, but it is for {head_mask.size()[0]}."
+            ), f"The head_mask should be specified for {len(self.layers)} layers, but it is for {head_mask.shape[0]}."
 
         for idx, encoder_layer in enumerate(self.layers):
             if output_hidden_states:
@@ -1225,10 +1225,10 @@ class WhisperDecoder(WhisperPreTrainedModel):
         if input_ids is not None and inputs_embeds is not None:
             raise ValueError("You cannot specify both decoder_input_ids and decoder_inputs_embeds at the same time")
         elif input_ids is not None:
-            input_shape = input_ids.size()
+            input_shape = input_ids.shape
             input_ids = input_ids.view(-1, input_shape[-1])
         elif inputs_embeds is not None:
-            input_shape = inputs_embeds.size()[:-1]
+            input_shape = inputs_embeds.shape[:-1]
         else:
             raise ValueError("You have to specify either decoder_input_ids or decoder_inputs_embeds")
 
@@ -1280,9 +1280,9 @@ class WhisperDecoder(WhisperPreTrainedModel):
         # check if head_mask/cross_attn_head_mask has a correct number of layers specified if desired
         for attn_mask, mask_name in zip([head_mask, cross_attn_head_mask], ["head_mask", "cross_attn_head_mask"]):
             if attn_mask is not None:
-                assert attn_mask.size()[0] == (len(self.layers)), (
+                assert attn_mask.shape[0] == (len(self.layers)), (
                     f"The `{mask_name}` should be specified for {len(self.layers)} layers, but it is for"
-                    f" {head_mask.size()[0]}."
+                    f" {head_mask.shape[0]}."
                 )
         for idx, decoder_layer in enumerate(self.layers):
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
@@ -1396,7 +1396,7 @@ class WhisperModel(WhisperPreTrainedModel):
             return input_features
 
         # generate indices & apply SpecAugment along time axis
-        batch_size, hidden_size, sequence_length = input_features.size()
+        batch_size, hidden_size, sequence_length = input_features.shape
 
         if self.config.mask_time_prob > 0 and self.training:
             # generate indices & apply SpecAugment along time axis
