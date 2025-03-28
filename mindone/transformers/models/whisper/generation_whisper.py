@@ -485,7 +485,7 @@ class WhisperGenerationMixin:
         generation_config, kwargs = self._prepare_generation_config(generation_config, **kwargs)
 
         # 2. set global generate variables
-        input_stride = self.model.encoder.conv1.stride[0] * self.model.encoder.conv2.stride[0]
+        input_stride = self.model.encoder.conv1.stride[1] * self.model.encoder.conv2.stride[1]
         num_segment_frames = input_stride * self.config.max_source_positions
         batch_size, total_input_frames = self._retrieve_total_input_frames(
             input_features=input_features, input_stride=input_stride, kwargs=kwargs
