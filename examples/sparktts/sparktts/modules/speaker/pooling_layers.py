@@ -19,12 +19,12 @@ High-order statistics are surprisingly effective, TSDP acts similarly as TSTP,
 even though we remove the mean statistic, on Voxceleb.
 """
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import mindspore as ms
+from mindspore import nn, mint
+import mindspore.mint.nn.functional as F
 
 
-class TAP(nn.Module):
+class TAP(nn.Cell):
     """
     Temporal average pooling, only first-order mean is considered
     """
@@ -33,7 +33,7 @@ class TAP(nn.Module):
         super(TAP, self).__init__()
         self.in_dim = in_dim
 
-    def forward(self, x):
+    def construct(self, x):
         pooling_mean = x.mean(dim=-1)
         # To be compatable with 2D input
         pooling_mean = pooling_mean.flatten(start_dim=1)
@@ -44,7 +44,7 @@ class TAP(nn.Module):
         return self.out_dim
 
 
-class TSDP(nn.Module):
+class TSDP(nn.Cell):
     """
     Temporal standard deviation pooling, only second-order std is considered
     """
@@ -53,9 +53,9 @@ class TSDP(nn.Module):
         super(TSDP, self).__init__()
         self.in_dim = in_dim
 
-    def forward(self, x):
+    def construct(self, x):
         # The last dimension is the temporal axis
-        pooling_std = torch.sqrt(torch.var(x, dim=-1) + 1e-7)
+        pooling_std = mint.sqrt(mint.var(x, dim=-1) + 1e-7)
         pooling_std = pooling_std.flatten(start_dim=1)
         return pooling_std
 
@@ -64,7 +64,7 @@ class TSDP(nn.Module):
         return self.out_dim
 
 
-class TSTP(nn.Module):
+class TSTP(nn.Cell):
     """
     Temporal statistics pooling, concatenate mean and std, which is used in
     x-vector
@@ -75,13 +75,13 @@ class TSTP(nn.Module):
         super(TSTP, self).__init__()
         self.in_dim = in_dim
 
-    def forward(self, x):
+    def construct(self, x):
         # The last dimension is the temporal axis
         pooling_mean = x.mean(dim=-1)
-        pooling_std = torch.sqrt(torch.var(x, dim=-1) + 1e-7)
+        pooling_std = mint.sqrt(mint.var(x, dim=-1) + 1e-7)
         pooling_mean = pooling_mean.flatten(start_dim=1)
         pooling_std = pooling_std.flatten(start_dim=1)
-        stats = torch.cat((pooling_mean, pooling_std), 1)
+        stats = mint.cat((pooling_mean, pooling_std), 1)
         return stats
 
     def get_out_dim(self):
@@ -89,7 +89,7 @@ class TSTP(nn.Module):
         return self.out_dim
 
 
-class ASTP(nn.Module):
+class ASTP(nn.Cell):
     """ Attentive statistics pooling: Channel- and context-dependent
         statistics pooling, first used in ECAPA_TDNN.
     """
@@ -108,15 +108,15 @@ class ASTP(nn.Module):
         if global_context_att:
             self.linear1 = nn.Conv1d(
                 in_dim * 3, bottleneck_dim,
-                kernel_size=1)  # equals W and b in the paper
+                kernel_size=1, has_bias=True)  # equals W and b in the paper
         else:
             self.linear1 = nn.Conv1d(
                 in_dim, bottleneck_dim,
-                kernel_size=1)  # equals W and b in the paper
+                kernel_size=1, has_bias=True)  # equals W and b in the paper
         self.linear2 = nn.Conv1d(bottleneck_dim, in_dim,
-                                 kernel_size=1)  # equals V and k in the paper
+                                 kernel_size=1, has_bias=True)  # equals V and k in the paper
 
-    def forward(self, x):
+    def construct(self, x):
         """
         x: a 3-dimensional tensor in tdnn-based architecture (B,F,T)
             or a 4-dimensional tensor in resnet architecture (B,C,F,T)
@@ -127,28 +127,28 @@ class ASTP(nn.Module):
         assert len(x.shape) == 3
 
         if self.global_context_att:
-            context_mean = torch.mean(x, dim=-1, keepdim=True).expand_as(x)
-            context_std = torch.sqrt(
-                torch.var(x, dim=-1, keepdim=True) + 1e-7).expand_as(x)
-            x_in = torch.cat((x, context_mean, context_std), dim=1)
+            context_mean = mint.mean(x, dim=-1, keepdim=True).expand_as(x)
+            context_std = mint.sqrt(
+                mint.var(x, dim=-1, keepdim=True) + 1e-7).expand_as(x)
+            x_in = mint.cat((x, context_mean, context_std), dim=1)
         else:
             x_in = x
 
         # DON'T use ReLU here! ReLU may be hard to converge.
-        alpha = torch.tanh(
+        alpha = mint.tanh(
             self.linear1(x_in))  # alpha = F.relu(self.linear1(x_in))
-        alpha = torch.softmax(self.linear2(alpha), dim=2)
-        mean = torch.sum(alpha * x, dim=2)
-        var = torch.sum(alpha * (x**2), dim=2) - mean**2
-        std = torch.sqrt(var.clamp(min=1e-7))
-        return torch.cat([mean, std], dim=1)
+        alpha = mint.softmax(self.linear2(alpha), dim=2)
+        mean = mint.sum(alpha * x, dim=2)
+        var = mint.sum(alpha * (x**2), dim=2) - mean**2
+        std = mint.sqrt(var.clamp(min=1e-7))
+        return mint.cat([mean, std], dim=1)
 
     def get_out_dim(self):
         self.out_dim = 2 * self.in_dim
         return self.out_dim
 
 
-class MHASTP(torch.nn.Module):
+class MHASTP(nn.Cell):
     """ Multi head attentive statistics pooling
     Reference:
         Self Multi-Head Attention for Speaker Recognition
@@ -181,16 +181,16 @@ class MHASTP(torch.nn.Module):
             for i in range(layer_num - 1):
                 att_trans.add_module(
                     'att_' + str(i),
-                    nn.Conv1d(channel_dims[i], channel_dims[i + 1], 1, 1))
+                    nn.Conv1d(channel_dims[i], channel_dims[i + 1], 1, 1, has_bias=True))
                 att_trans.add_module('tanh' + str(i), nn.Tanh())
             att_trans.add_module(
                 'att_' + str(layer_num - 1),
                 nn.Conv1d(channel_dims[layer_num - 1], channel_dims[layer_num],
-                          1, 1))
+                          1, 1, has_bias=True))
             heads_att_trans.append(att_trans)
-        self.heads_att_trans = nn.ModuleList(heads_att_trans)
+        self.heads_att_trans = nn.CellList(heads_att_trans)
 
-    def forward(self, input):
+    def construct(self, input):
         """
         input: a 3-dimensional tensor in xvector architecture
             or a 4-dimensional tensor in resnet architecture
@@ -202,7 +202,7 @@ class MHASTP(torch.nn.Module):
                                   input.shape[3])
         assert len(input.shape) == 3
         bs, f_dim, t_dim = input.shape
-        chunks = torch.chunk(input, self.head_num, 1)
+        chunks = mint.chunk(input, self.head_num, 1)
         # split
         chunks_out = []
         # for i in range(self.head_num):
@@ -210,11 +210,11 @@ class MHASTP(torch.nn.Module):
         for i, layer in enumerate(self.heads_att_trans):
             att_score = layer(chunks[i])
             alpha = F.softmax(att_score, dim=-1)
-            mean = torch.sum(alpha * chunks[i], dim=2)
-            var = torch.sum(alpha * chunks[i]**2, dim=2) - mean**2
-            std = torch.sqrt(var.clamp(min=1e-7))
-            chunks_out.append(torch.cat((mean, std), dim=1))
-        out = torch.cat(chunks_out, dim=1)
+            mean = mint.sum(alpha * chunks[i], dim=2)
+            var = mint.sum(alpha * chunks[i]**2, dim=2) - mean**2
+            std = mint.sqrt(var.clamp(min=1e-7))
+            chunks_out.append(mint.cat((mean, std), dim=1))
+        out = mint.cat(chunks_out, dim=1)
         return out
 
     def get_out_dim(self):
@@ -222,7 +222,7 @@ class MHASTP(torch.nn.Module):
         return self.out_dim
 
 
-class MQMHASTP(torch.nn.Module):
+class MQMHASTP(nn.Cell):
     """ An attentive pooling
     Reference:
         multi query multi head attentive statistics pooling
@@ -253,7 +253,7 @@ class MQMHASTP(torch.nn.Module):
                  bottleneck_dim=64,
                  **kwargs):
         super(MQMHASTP, self).__init__()
-        self.n_query = nn.ModuleList([
+        self.n_query = nn.CellList([
             MHASTP(in_dim,
                    layer_num=layer_num,
                    head_num=head_num,
@@ -263,7 +263,7 @@ class MQMHASTP(torch.nn.Module):
         self.query_num = query_num
         self.in_dim = in_dim
 
-    def forward(self, input):
+    def construct(self, input):
         """
         input: a 3-dimensional tensor in xvector architecture
             or a 4-dimensional tensor in resnet architecture
@@ -277,7 +277,7 @@ class MQMHASTP(torch.nn.Module):
         res = []
         for i, layer in enumerate(self.n_query):
             res.append(layer(input))
-        out = torch.cat(res, dim=-1)
+        out = mint.cat(res, dim=-1)
         return out
 
     def get_out_dim(self):
@@ -286,7 +286,7 @@ class MQMHASTP(torch.nn.Module):
 
 
 if __name__ == '__main__':
-    data = torch.randn(16, 512, 10, 35)
+    data = mint.randn(16, 512, 10, 35)
     # model = StatisticsPooling()
     model = MQMHASTP(512 * 10)
     model = MHASTP(512 * 10)

@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-import torch.nn as nn
+import mindspore as ms
+from mindspore import nn, mint
 
 from typing import List, Tuple
 from sparktts.modules.fsq.residual_fsq import ResidualFSQ
@@ -26,7 +26,7 @@ x-vector + d-vector
 """
 
 
-class SpeakerEncoder(nn.Module):
+class SpeakerEncoder(nn.Cell):
     """
 
     Args:
@@ -66,7 +66,7 @@ class SpeakerEncoder(nn.Module):
             quantize_dropout=False,
         )
 
-        self.project = nn.Linear(latent_dim * token_num, out_dim)
+        self.project = mint.nn.Linear(latent_dim * token_num, out_dim)
 
     def get_codes_from_indices(self, indices: torch.Tensor) -> torch.Tensor:
         zq = self.quantizer.get_codes_from_indices(indices.transpose(1, 2))
@@ -119,7 +119,7 @@ if __name__ == "__main__":
         fsq_levels=[4, 4, 4, 4, 4, 4],
         fsq_num_quantizers=1,
     )
-    mel = torch.randn(8, 200, 100)
+    mel = mint.randn(8, 200, 100)
     x_vector, d_vector = model(mel)
     print("x-vector shape", x_vector.shape)
     print("d-vector shape", d_vector.shape)

@@ -14,8 +14,8 @@
 # limitations under the License.
 
 
-import torch
-import torch.nn as nn
+import mindspore as ms
+from mindspore import mint, nn
 
 from typing import List
 
@@ -23,7 +23,7 @@ from sparktts.modules.blocks.vocos import VocosBackbone
 from sparktts.modules.blocks.samper import SamplingBlock
 
 
-class Decoder(nn.Module):
+class Decoder(nn.Cell):
     """Decoder module with convnext and upsampling blocks
 
     Args:
@@ -44,7 +44,7 @@ class Decoder(nn.Module):
     ):
         super().__init__()
 
-        self.linear_pre = nn.Linear(input_channels, vocos_dim)
+        self.linear_pre = mint.nn.Linear(input_channels, vocos_dim)
         modules = [
             nn.Sequential(
                 SamplingBlock(
@@ -72,32 +72,32 @@ class Decoder(nn.Module):
             num_layers=vocos_num_layers,
             condition_dim=condition_dim,
         )
-        self.linear = nn.Linear(vocos_dim, out_channels)
+        self.linear = mint.nn.Linear(vocos_dim, out_channels)
         self.use_tanh_at_final = use_tanh_at_final
 
-    def forward(self, x: torch.Tensor, c: torch.Tensor = None):
+    def construct(self, x: ms.Tensor, c: ms.Tensor = None):
         """encoder forward.
 
         Args:
-            x (torch.Tensor): (batch_size, input_channels, length)
+            x (ms.Tensor): (batch_size, input_channels, length)
 
         Returns:
-            x (torch.Tensor): (batch_size, encode_channels, length)
+            x (ms.Tensor): (batch_size, encode_channels, length)
         """
         x = self.linear_pre(x.transpose(1, 2))
         x = self.downsample(x).transpose(1, 2)
         x = self.vocos_backbone(x, condition=c)
         x = self.linear(x).transpose(1, 2)
         if self.use_tanh_at_final:
-            x = torch.tanh(x)
+            x = mint.tanh(x)
 
         return x
 
 
 # test
 if __name__ == "__main__":
-    test_input = torch.randn(8, 1024, 50)  # Batch size = 8, 1024 channels, length = 50
-    condition = torch.randn(8, 256)
+    test_input = mint.randn(8, 1024, 50)  # Batch size = 8, 1024 channels, length = 50
+    condition = mint.randn(8, 256)
     decoder = Decoder(
         input_channels=1024,
         vocos_dim=384,
@@ -108,8 +108,8 @@ if __name__ == "__main__":
         sample_ratios=[2, 2],
     )
     output = decoder(test_input, condition)
-    print(output.shape)  # torch.Size([8, 256, 200])
-    if output.shape == torch.Size([8, 256, 200]):
+    print(output.shape)  # mint.Size([8, 256, 200])
+    if output.shape == ms.Size([8, 256, 200]):
         print("Decoder test passed")
     else:
         print("Decoder test failed")

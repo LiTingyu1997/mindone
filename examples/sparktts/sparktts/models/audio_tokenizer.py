@@ -14,7 +14,8 @@
 # limitations under the License.
 
 
-import torch
+import mindspore as ms
+from mindspore import nn, mint
 import numpy as np
 
 from pathlib import Path
@@ -29,29 +30,25 @@ from sparktts.models.bicodec import BiCodec
 class BiCodecTokenizer:
     """BiCodec tokenizer for handling audio input and tokenization."""
 
-    def __init__(self, model_dir: Path, device: torch.device = None, **kwargs):
+    def __init__(self, model_dir: Path, **kwargs):
         super().__init__()
         """
         Args:
             model_dir: Path to the model directory.
-            device: Device to run the model on (default is GPU if available).
         """
-        self.device = device
         self.model_dir = model_dir
         self.config = load_config(f"{model_dir}/config.yaml")
         self._initialize_model()
 
     def _initialize_model(self):
         """Load and initialize the BiCodec model and Wav2Vec2 feature extractor."""
-        self.model = BiCodec.load_from_checkpoint(f"{self.model_dir}/BiCodec").to(
-            self.device
-        )
+        self.model = BiCodec.load_from_checkpoint(f"{self.model_dir}/BiCodec")
         self.processor = Wav2Vec2FeatureExtractor.from_pretrained(
             f"{self.model_dir}/wav2vec2-large-xlsr-53"
         )
         self.feature_extractor = Wav2Vec2Model.from_pretrained(
             f"{self.model_dir}/wav2vec2-large-xlsr-53"
-        ).to(self.device)
+        )
         self.feature_extractor.config.output_hidden_states = True
 
     def get_ref_clip(self, wav: np.ndarray) -> np.ndarray:
@@ -69,7 +66,7 @@ class BiCodecTokenizer:
 
         return wav[:ref_segment_length]
 
-    def process_audio(self, wav_path: Path) -> Tuple[np.ndarray, torch.Tensor]:
+    def process_audio(self, wav_path: Path) -> Tuple[np.ndarray, ms.tensor]:
         """load auido and get reference audio from wav path"""
         wav = load_audio(
             wav_path,
@@ -79,32 +76,32 @@ class BiCodecTokenizer:
 
         wav_ref = self.get_ref_clip(wav)
 
-        wav_ref = torch.from_numpy(wav_ref).unsqueeze(0).float()
+        wav_ref = ms.tensor(wav_ref).unsqueeze(0).float()
         return wav, wav_ref
 
-    def extract_wav2vec2_features(self, wavs: torch.Tensor) -> torch.Tensor:
+    def extract_wav2vec2_features(self, wavs: ms.tensor) -> ms.tensor:
         """extract wav2vec2 features"""
         inputs = self.processor(
             wavs,
             sampling_rate=16000,
-            return_tensors="pt",
+            return_tensors="np",
             padding=True,
             output_hidden_states=True,
         ).input_values
-        feat = self.feature_extractor(inputs.to(self.feature_extractor.device))
+        feat = self.feature_extractor(inputs)
         feats_mix = (
             feat.hidden_states[11] + feat.hidden_states[14] + feat.hidden_states[16]
         ) / 3
 
         return feats_mix
 
-    def tokenize_batch(self, batch: Dict[str, Any]) -> torch.Tensor:
+    def tokenize_batch(self, batch: Dict[str, Any]) -> ms.tensor:
         """tokenize the batch of audio
 
         Args:
             batch:
                 wavs (List[np.ndarray]): batch of audio
-                ref_wavs (torch.Tensor): reference audio. shape: (batch_size, seq_len)
+                ref_wavs (ms.tensor): reference audio. shape: (batch_size, seq_len)
 
         Returns:
             semantic_tokens: semantic tokens. shape: (batch_size, seq_len, latent_dim)
@@ -116,21 +113,21 @@ class BiCodecTokenizer:
 
         return global_tokens, semantic_tokens
 
-    def tokenize(self, audio_path: str) -> Tuple[torch.Tensor, torch.Tensor]:
+    def tokenize(self, audio_path: str) -> Tuple[ms.tensor, ms.tensor]:
         """tokenize the audio"""
         wav, ref_wav = self.process_audio(audio_path)
         feat = self.extract_wav2vec2_features(wav)
         batch = {
-            "wav": torch.from_numpy(wav).unsqueeze(0).float().to(self.device),
-            "ref_wav": ref_wav.to(self.device),
-            "feat": feat.to(self.device),
+            "wav": ms.tensor(wav).unsqueeze(0).float(),
+            "ref_wav": ref_wav,
+            "feat": feat,
         }
         semantic_tokens, global_tokens = self.model.tokenize(batch)
 
         return global_tokens, semantic_tokens
 
     def detokenize(
-        self, global_tokens: torch.Tensor, semantic_tokens: torch.Tensor
+        self, global_tokens: ms.tensor, semantic_tokens: ms.tensor
     ) -> np.array:
         """detokenize the tokens to waveform
 
@@ -150,10 +147,8 @@ class BiCodecTokenizer:
 if __name__ == "__main__":
     import soundfile as sf
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = BiCodecTokenizer(
         model_dir="pretrained_models/Spark-TTS-0.5B",
-        device=device,
     )
     wav_path = "example/prompt_audio.wav"
 

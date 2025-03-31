@@ -18,14 +18,15 @@
     https://github.com/lawlict/ECAPA-TDNN.
 """
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+
+import mindspore as ms
+from mindspore import nn, mint
+import mindspore.mint.nn.functional as F
 
 import sparktts.modules.speaker.pooling_layers as pooling_layers
 
 
-class Res2Conv1dReluBn(nn.Module):
+class Res2Conv1dReluBn(nn.Cell):
     """
     in_channels == out_channels == channels
     """
@@ -57,16 +58,17 @@ class Res2Conv1dReluBn(nn.Module):
                     stride,
                     padding,
                     dilation,
-                    bias=bias,
+                    pad_mode="pad", 
+                    has_bias=bias,
                 )
             )
             self.bns.append(nn.BatchNorm1d(self.width))
-        self.convs = nn.ModuleList(self.convs)
-        self.bns = nn.ModuleList(self.bns)
+        self.convs = nn.CellList(self.convs)
+        self.bns = nn.CellList(self.bns)
 
-    def forward(self, x):
+    def construct(self, x):
         out = []
-        spx = torch.split(x, self.width, 1)
+        spx = mint.split(x, self.width, 1)
         sp = spx[0]
         for i, (conv, bn) in enumerate(zip(self.convs, self.bns)):
             # Order: conv -> relu -> bn
@@ -77,7 +79,7 @@ class Res2Conv1dReluBn(nn.Module):
             out.append(sp)
         if self.scale != 1:
             out.append(spx[self.nums])
-        out = torch.cat(out, dim=1)
+        out = mint.cat(out, dim=1)
 
         return out
 
@@ -86,7 +88,7 @@ class Res2Conv1dReluBn(nn.Module):
 """
 
 
-class Conv1dReluBn(nn.Module):
+class Conv1dReluBn(nn.Cell):
 
     def __init__(
         self,
@@ -100,11 +102,11 @@ class Conv1dReluBn(nn.Module):
     ):
         super().__init__()
         self.conv = nn.Conv1d(
-            in_channels, out_channels, kernel_size, stride, padding, dilation, bias=bias
+            in_channels, out_channels, kernel_size, stride, padding, dilation, pad_mode="pad", has_bias=bias
         )
         self.bn = nn.BatchNorm1d(out_channels)
 
-    def forward(self, x):
+    def construct(self, x):
         return self.bn(F.relu(self.conv(x)))
 
 
@@ -112,17 +114,17 @@ class Conv1dReluBn(nn.Module):
 """
 
 
-class SE_Connect(nn.Module):
+class SE_Connect(nn.Cell):
 
     def __init__(self, channels, se_bottleneck_dim=128):
         super().__init__()
         self.linear1 = nn.Linear(channels, se_bottleneck_dim)
         self.linear2 = nn.Linear(se_bottleneck_dim, channels)
 
-    def forward(self, x):
+    def construct(self, x):
         out = x.mean(dim=2)
         out = F.relu(self.linear1(out))
-        out = torch.sigmoid(self.linear2(out))
+        out = mint.sigmoid(self.linear2(out))
         out = x * out.unsqueeze(2)
 
         return out
@@ -132,7 +134,7 @@ class SE_Connect(nn.Module):
 """
 
 
-class SE_Res2Block(nn.Module):
+class SE_Res2Block(nn.Cell):
 
     def __init__(self, channels, kernel_size, stride, padding, dilation, scale):
         super().__init__()
@@ -145,11 +147,11 @@ class SE_Res2Block(nn.Module):
             SE_Connect(channels),
         )
 
-    def forward(self, x):
+    def construct(self, x):
         return x + self.se_res2block(x)
 
 
-class ECAPA_TDNN(nn.Module):
+class ECAPA_TDNN(nn.Cell):
 
     def __init__(
         self,
@@ -188,7 +190,7 @@ class ECAPA_TDNN(nn.Module):
         else:
             self.bn2 = nn.Identity()
 
-    def forward(self, x, return_latent=False):
+    def construct(self, x, return_latent=False):
         x = x.permute(0, 2, 1)  # (B,T,F) -> (B,F,T)
 
         out1 = self.layer1(x)
@@ -196,7 +198,7 @@ class ECAPA_TDNN(nn.Module):
         out3 = self.layer3(out2)
         out4 = self.layer4(out3)
 
-        out = torch.cat([out2, out3, out4], dim=1)
+        out = mint.cat([out2, out3, out4], dim=1)
         latent = F.relu(self.conv(out))
         out = self.bn(self.pool(latent))
         out = self.linear(out)
@@ -251,7 +253,7 @@ def ECAPA_TDNN_GLOB_c512(feat_dim, embed_dim, pooling_func="ASTP", emb_bn=False)
 
 
 if __name__ == "__main__":
-    x = torch.zeros(1, 200, 100)
+    x = mint.zeros(1, 200, 100)
     model = ECAPA_TDNN_GLOB_c512(feat_dim=100, embed_dim=256, pooling_func="ASTP")
     model.eval()
     out, latent = model(x, True)
@@ -260,8 +262,3 @@ if __name__ == "__main__":
 
     num_params = sum(param.numel() for param in model.parameters())
     print("{} M".format(num_params / 1e6))
-
-    # from thop import profile
-    # x_np = torch.randn(1, 200, 80)
-    # flops, params = profile(model, inputs=(x_np, ))
-    # print("FLOPs: {} G, Params: {} M".format(flops / 1e9, params / 1e6))

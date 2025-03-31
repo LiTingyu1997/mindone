@@ -14,12 +14,12 @@
 # limitations under the License.
 
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import mindspore as ms
+from mindspore import nn, mint
+import mindspore.mint.nn.functional as F
 
 
-class SamplingBlock(nn.Module):
+class SamplingBlock(nn.Cell):
     """Sampling block for upsampling or downsampling"""
 
     def __init__(
@@ -44,7 +44,7 @@ class SamplingBlock(nn.Module):
         if self.upsample_scale > 1:
             self.de_conv_upsampler = nn.Sequential(
                 nn.LeakyReLU(0.2),
-                nn.ConvTranspose1d(
+                nn.Conv1dTranspose(
                     dim,
                     dim,
                     kernel_size=upsample_scale * 2,
@@ -65,6 +65,8 @@ class SamplingBlock(nn.Module):
                     stride=downsample_scale,
                     padding=downsample_scale // 2 + downsample_scale % 2,
                     groups=groups,
+                    pad_mode="pad", 
+                    has_bias=True,
                 ),
             )
 
@@ -102,14 +104,14 @@ class SamplingBlock(nn.Module):
 
 # test
 if __name__ == "__main__":
-    test_input = torch.randn(8, 1024, 50)  # Batch size = 8, 1024 channels, length = 50
+    test_input = mint.randn(8, 1024, 50)  # Batch size = 8, 1024 channels, length = 50
     model = SamplingBlock(1024, 1024, upsample_scale=2)
     model_down = SamplingBlock(1024, 1024, downsample_scale=2)
     output = model(test_input)
     output_down = model_down(test_input)
-    print("shape after upsample * 2", output.shape)  # torch.Size([8, 1024, 100])
-    print("shape after downsample * 2", output_down.shape)  # torch.Size([8, 1024, 25])
-    if output.shape == torch.Size([8, 1024, 100]) and output_down.shape == torch.Size(
+    print("shape after upsample * 2", output.shape)  # ms.Size([8, 1024, 100])
+    print("shape after downsample * 2", output_down.shape)  # ms.Size([8, 1024, 25])
+    if output.shape == ms.Size([8, 1024, 100]) and output_down.shape == ms.Size(
         [8, 1024, 25]
     ):
         print("test successful")

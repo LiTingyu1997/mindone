@@ -14,16 +14,16 @@
 # limitations under the License.
 
 
-import torch
-import torch.nn as nn
+import mindspore as ms
+from mindspore import nn, mint, Parameter
 
 from typing import Tuple
-from torch.nn.utils import weight_norm, remove_weight_norm
+from mindone.utils import WeightNorm
 
 from typing import Optional
 
 
-class ConvNeXtBlock(nn.Module):
+class ConvNeXtBlock(nn.Cell):
     """ConvNeXt Block adapted from https://github.com/facebookresearch/ConvNeXt to 1D audio signal.
 
     Args:
@@ -44,27 +44,27 @@ class ConvNeXtBlock(nn.Module):
     ):
         super().__init__()
         self.dwconv = nn.Conv1d(
-            dim, dim, kernel_size=7, padding=3, groups=dim
+            dim, dim, kernel_size=7, padding=3, groups=dim, pad_mode="pad", has_bias=True,
         )  # depthwise conv
         self.adanorm = condition_dim is not None
         if condition_dim:
             self.norm = AdaLayerNorm(condition_dim, dim, eps=1e-6)
         else:
             self.norm = nn.LayerNorm(dim, eps=1e-6)
-        self.pwconv1 = nn.Linear(
+        self.pwconv1 = mint.nn.Linear(
             dim, intermediate_dim
         )  # pointwise/1x1 convs, implemented with linear layers
         self.act = nn.GELU()
-        self.pwconv2 = nn.Linear(intermediate_dim, dim)
+        self.pwconv2 = mint.nn.Linear(intermediate_dim, dim)
         self.gamma = (
-            nn.Parameter(layer_scale_init_value * torch.ones(dim), requires_grad=True)
+            Parameter(layer_scale_init_value * mint.ones(dim), requires_grad=True)
             if layer_scale_init_value > 0
             else None
         )
 
-    def forward(
-        self, x: torch.Tensor, cond_embedding_id: Optional[torch.Tensor] = None
-    ) -> torch.Tensor:
+    def construct(
+        self, x: ms.Tensor, cond_embedding_id: Optional[ms.Tensor] = None
+    ) -> ms.Tensor:
         residual = x
         x = self.dwconv(x)
         x = x.transpose(1, 2)  # (B, C, T) -> (B, T, C)
@@ -84,7 +84,7 @@ class ConvNeXtBlock(nn.Module):
         return x
 
 
-class AdaLayerNorm(nn.Module):
+class AdaLayerNorm(nn.Cell):
     """
     Adaptive Layer Normalization module with learnable embeddings per `num_embeddings` classes
 
@@ -97,12 +97,12 @@ class AdaLayerNorm(nn.Module):
         super().__init__()
         self.eps = eps
         self.dim = embedding_dim
-        self.scale = nn.Linear(condition_dim, embedding_dim)
-        self.shift = nn.Linear(condition_dim, embedding_dim)
-        torch.nn.init.ones_(self.scale.weight)
-        torch.nn.init.zeros_(self.shift.weight)
+        self.scale = mint.nn.Linear(condition_dim, embedding_dim)
+        self.shift = mint.nn.Linear(condition_dim, embedding_dim)
+        mint.nn.init.ones_(self.scale.weight)
+        mint.nn.init.zeros_(self.shift.weight)
 
-    def forward(self, x: torch.Tensor, cond_embedding: torch.Tensor) -> torch.Tensor:
+    def construct(self, x: ms.Tensor, cond_embedding: ms.Tensor) -> ms.Tensor:
         scale = self.scale(cond_embedding)
         shift = self.shift(cond_embedding)
         x = nn.functional.layer_norm(x, (self.dim,), eps=self.eps)
@@ -110,7 +110,7 @@ class AdaLayerNorm(nn.Module):
         return x
 
 
-class ResBlock1(nn.Module):
+class ResBlock1(nn.Cell):
     """
     ResBlock adapted from HiFi-GAN V1 (https://github.com/jik876/hifi-gan) with dilated 1D convolutions,
     but without upsampling layers.
@@ -136,9 +136,9 @@ class ResBlock1(nn.Module):
     ):
         super().__init__()
         self.lrelu_slope = lrelu_slope
-        self.convs1 = nn.ModuleList(
+        self.convs1 = nn.CellList(
             [
-                weight_norm(
+                WeightNorm(
                     nn.Conv1d(
                         dim,
                         dim,
@@ -146,9 +146,11 @@ class ResBlock1(nn.Module):
                         1,
                         dilation=dilation[0],
                         padding=self.get_padding(kernel_size, dilation[0]),
+                        pad_mode="pad", 
+                        has_bias=True,
                     )
                 ),
-                weight_norm(
+                WeightNorm(
                     nn.Conv1d(
                         dim,
                         dim,
@@ -156,9 +158,11 @@ class ResBlock1(nn.Module):
                         1,
                         dilation=dilation[1],
                         padding=self.get_padding(kernel_size, dilation[1]),
+                        pad_mode="pad", 
+                        has_bias=True,
                     )
                 ),
-                weight_norm(
+                WeightNorm(
                     nn.Conv1d(
                         dim,
                         dim,
@@ -166,14 +170,16 @@ class ResBlock1(nn.Module):
                         1,
                         dilation=dilation[2],
                         padding=self.get_padding(kernel_size, dilation[2]),
+                        pad_mode="pad", 
+                        has_bias=True,
                     )
                 ),
             ]
         )
 
-        self.convs2 = nn.ModuleList(
+        self.convs2 = nn.CellList(
             [
-                weight_norm(
+                WeightNorm(
                     nn.Conv1d(
                         dim,
                         dim,
@@ -181,9 +187,11 @@ class ResBlock1(nn.Module):
                         1,
                         dilation=1,
                         padding=self.get_padding(kernel_size, 1),
+                        pad_mode="pad", 
+                        has_bias=True,
                     )
                 ),
-                weight_norm(
+                WeightNorm(
                     nn.Conv1d(
                         dim,
                         dim,
@@ -191,9 +199,11 @@ class ResBlock1(nn.Module):
                         1,
                         dilation=1,
                         padding=self.get_padding(kernel_size, 1),
+                        pad_mode="pad", 
+                        has_bias=True,
                     )
                 ),
-                weight_norm(
+                WeightNorm(
                     nn.Conv1d(
                         dim,
                         dim,
@@ -201,30 +211,32 @@ class ResBlock1(nn.Module):
                         1,
                         dilation=1,
                         padding=self.get_padding(kernel_size, 1),
+                        pad_mode="pad", 
+                        has_bias=True,
                     )
                 ),
             ]
         )
 
-        self.gamma = nn.ParameterList(
+        self.gamma = ParameterList(
             [
                 (
-                    nn.Parameter(
-                        layer_scale_init_value * torch.ones(dim, 1), requires_grad=True
+                    Parameter(
+                        layer_scale_init_value * mint.ones(dim, 1), requires_grad=True
                     )
                     if layer_scale_init_value is not None
                     else None
                 ),
                 (
-                    nn.Parameter(
-                        layer_scale_init_value * torch.ones(dim, 1), requires_grad=True
+                    Parameter(
+                        layer_scale_init_value * mint.ones(dim, 1), requires_grad=True
                     )
                     if layer_scale_init_value is not None
                     else None
                 ),
                 (
-                    nn.Parameter(
-                        layer_scale_init_value * torch.ones(dim, 1), requires_grad=True
+                    Parameter(
+                        layer_scale_init_value * mint.ones(dim, 1), requires_grad=True
                     )
                     if layer_scale_init_value is not None
                     else None
@@ -232,32 +244,32 @@ class ResBlock1(nn.Module):
             ]
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def construct(self, x: ms.Tensor) -> ms.Tensor:
         for c1, c2, gamma in zip(self.convs1, self.convs2, self.gamma):
-            xt = torch.nn.functional.leaky_relu(x, negative_slope=self.lrelu_slope)
+            xt = mint.nn.functional.leaky_relu(x, negative_slope=self.lrelu_slope)
             xt = c1(xt)
-            xt = torch.nn.functional.leaky_relu(xt, negative_slope=self.lrelu_slope)
+            xt = mint.nn.functional.leaky_relu(xt, negative_slope=self.lrelu_slope)
             xt = c2(xt)
             if gamma is not None:
                 xt = gamma * xt
             x = xt + x
         return x
 
-    def remove_weight_norm(self):
-        for l in self.convs1:
-            remove_weight_norm(l)
-        for l in self.convs2:
-            remove_weight_norm(l)
+    # def remove_WeightNorm(self):
+    #     for l in self.convs1:
+    #         remove_WeightNorm(l)
+    #     for l in self.convs2:
+    #         remove_WeightNorm(l)
 
     @staticmethod
     def get_padding(kernel_size: int, dilation: int = 1) -> int:
         return int((kernel_size * dilation - dilation) / 2)
 
 
-class Backbone(nn.Module):
+class Backbone(nn.Cell):
     """Base class for the generator's backbone. It preserves the same temporal resolution across all layers."""
 
-    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
+    def construct(self, x: ms.Tensor, **kwargs) -> ms.Tensor:
         """
         Args:
             x (Tensor): Input tensor of shape (B, C, L), where B is the batch size,
@@ -295,14 +307,14 @@ class VocosBackbone(Backbone):
     ):
         super().__init__()
         self.input_channels = input_channels
-        self.embed = nn.Conv1d(input_channels, dim, kernel_size=7, padding=3)
+        self.embed = nn.Conv1d(input_channels, dim, kernel_size=7, padding=3, pad_mode="pad", has_bias=True,)
         self.adanorm = condition_dim is not None
         if condition_dim:
             self.norm = AdaLayerNorm(condition_dim, dim, eps=1e-6)
         else:
             self.norm = nn.LayerNorm(dim, eps=1e-6)
         layer_scale_init_value = layer_scale_init_value or 1 / num_layers
-        self.convnext = nn.ModuleList(
+        self.convnext = nn.CellList(
             [
                 ConvNeXtBlock(
                     dim=dim,
@@ -317,11 +329,11 @@ class VocosBackbone(Backbone):
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
-        if isinstance(m, (nn.Conv1d, nn.Linear)):
+        if isinstance(m, (nn.Conv1d, mint.nn.Linear)):
             nn.init.trunc_normal_(m.weight, std=0.02)
             nn.init.constant_(m.bias, 0)
 
-    def forward(self, x: torch.Tensor, condition: torch.Tensor = None) -> torch.Tensor:
+    def construct(self, x: ms.Tensor, condition: ms.Tensor = None) -> ms.Tensor:
         x = self.embed(x)
         if self.adanorm:
             assert condition is not None
@@ -355,8 +367,8 @@ class VocosResNetBackbone(Backbone):
     ):
         super().__init__()
         self.input_channels = input_channels
-        self.embed = weight_norm(
-            nn.Conv1d(input_channels, dim, kernel_size=3, padding=1)
+        self.embed = WeightNorm(
+            nn.Conv1d(input_channels, dim, kernel_size=3, padding=1, pad_mode="pad", has_bias=True)
         )
         layer_scale_init_value = layer_scale_init_value or 1 / num_blocks / 3
         self.resnet = nn.Sequential(
@@ -366,7 +378,7 @@ class VocosResNetBackbone(Backbone):
             ]
         )
 
-    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
+    def construct(self, x: ms.Tensor, **kwargs) -> ms.Tensor:
         x = self.embed(x)
         x = self.resnet(x)
         x = x.transpose(1, 2)

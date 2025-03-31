@@ -18,22 +18,22 @@
 
 from typing import Any, Dict
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import mindspore as ms
+from mindspore import nn, mint
+import mindspore.mint.nn.functional as F
 from einops import rearrange
-from torch.nn.utils import weight_norm
+from mindone.utils import WeightNorm
 
 
 def WNConv1d(*args, **kwargs):
-    return weight_norm(nn.Conv1d(*args, **kwargs))
+    return WeightNorm(nn.Conv1d(*args, **kwargs))
 
 
 def ema_inplace(moving_avg, new, decay):
     moving_avg.data.mul_(decay).add_(new, alpha=(1 - decay))
 
 
-class FactorizedVectorQuantize(nn.Module):
+class FactorizedVectorQuantize(nn.Cell):
     def __init__(
         self,
         input_dim: int,
@@ -65,9 +65,9 @@ class FactorizedVectorQuantize(nn.Module):
             self.out_project = nn.Identity()
 
         self.codebook = nn.Embedding(self.codebook_size, self.codebook_dim)
-        self.register_buffer("cluster_size", torch.zeros(self.codebook_size))
+        self.register_buffer("cluster_size", mint.zeros(self.codebook_size))
 
-    def forward(self, z: torch.Tensor) -> Dict[str, Any]:
+    def construct(self, z: ms.tensor) -> Dict[str, Any]:
         """Quantized the input tensor using a fixed codebook and returns
         the corresponding codebook vectors
 
@@ -97,8 +97,8 @@ class FactorizedVectorQuantize(nn.Module):
 
         # statistic the usage of codes
         embed_onehot = F.one_hot(indices, self.codebook_size).type(z_e.dtype)
-        avg_probs = torch.mean(embed_onehot.reshape(-1, self.codebook_size), dim=0)
-        perplexity = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
+        avg_probs = mint.mean(embed_onehot.reshape(-1, self.codebook_size), dim=0)
+        perplexity = mint.exp(-mint.sum(avg_probs * mint.log(avg_probs + 1e-10)))
 
         active_num = (embed_onehot.sum(0).sum(0) > 0).sum()
         if self.training:
@@ -119,8 +119,8 @@ class FactorizedVectorQuantize(nn.Module):
             )
 
         else:
-            commit_loss = torch.zeros(0, device=z.device)
-            codebook_loss = torch.zeros(0, device=z.device)
+            commit_loss = mint.zeros(0)
+            codebook_loss = mint.zeros(0)
 
         z_q = (
             z_e + (z_q - z_e).detach()
@@ -145,7 +145,7 @@ class FactorizedVectorQuantize(nn.Module):
             emb = self.out_project(emb)
         return emb
 
-    def tokenize(self, z: torch.Tensor) -> torch.Tensor:
+    def tokenize(self, z: ms.tensor) -> ms.tensor:
         """tokenize the input tensor"""
         z_e = self.in_project(z)
         _, indices, _ = self.decode_latents(z_e)

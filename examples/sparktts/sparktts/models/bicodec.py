@@ -13,12 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-import torch.nn as nn
+import mindspore as ms
+from mindspore import nn, mint
 from pathlib import Path
 from typing import Dict, Any
 from omegaconf import DictConfig
-from safetensors.torch import load_file
+# from safetensors.torch import load_file
 
 from sparktts.utils.file import load_config
 from sparktts.modules.speaker.speaker_encoder import SpeakerEncoder
@@ -28,7 +28,7 @@ from sparktts.modules.encoder_decoder.wave_generator import WaveGenerator
 from sparktts.modules.vq.factorized_vector_quantize import FactorizedVectorQuantize
 
 
-class BiCodec(nn.Module):
+class BiCodec(nn.Cell):
     """
     BiCodec model for speech synthesis, incorporating a speaker encoder, feature encoder/decoder,
     quantizer, and wave generator.
@@ -37,12 +37,12 @@ class BiCodec(nn.Module):
     def __init__(
         self,
         mel_params: Dict[str, Any],
-        encoder: nn.Module,
-        decoder: nn.Module,
-        quantizer: nn.Module,
-        speaker_encoder: nn.Module,
-        prenet: nn.Module,
-        postnet: nn.Module,
+        encoder: nn.Cell,
+        decoder: nn.Cell,
+        quantizer: nn.Cell,
+        speaker_encoder: nn.Cell,
+        prenet: nn.Cell,
+        postnet: nn.Cell,
         **kwargs
     ) -> None:
         """
@@ -50,12 +50,12 @@ class BiCodec(nn.Module):
 
         Args:
             mel_params (dict): Parameters for the mel-spectrogram transformer.
-            encoder (nn.Module): Encoder module.
-            decoder (nn.Module): Decoder module.
-            quantizer (nn.Module): Quantizer module.
-            speaker_encoder (nn.Module): Speaker encoder module.
-            prenet (nn.Module): Prenet network.
-            postnet (nn.Module): Postnet network.
+            encoder (nn.Cell): Encoder module.
+            decoder (nn.Cell): Decoder module.
+            quantizer (nn.Cell): Quantizer module.
+            speaker_encoder (nn.Cell): Speaker encoder module.
+            prenet (nn.Cell): Prenet network.
+            postnet (nn.Cell): Postnet network.
         """
         super().__init__()
         self.encoder = encoder
@@ -105,12 +105,12 @@ class BiCodec(nn.Module):
         for key in unexpected_keys:
             print(f"Unexpected tensor: {key}")
 
-        model.eval()
-        model.remove_weight_norm()
+        # model.eval()
+        # model.remove_weight_norm()
 
         return model
 
-    def forward(self, batch: Dict[str, Any]) -> Dict[str, Any]:
+    def construct(self, batch: Dict[str, Any]) -> Dict[str, Any]:
         """
         Performs a forward pass through the model.
 
@@ -148,7 +148,6 @@ class BiCodec(nn.Module):
             "with_speaker_loss": with_speaker_loss,
         }
 
-    @torch.no_grad()
     def tokenize(self, batch: Dict[str, Any]):
         """
         Tokenizes the input audio into semantic and global tokens.
@@ -168,7 +167,6 @@ class BiCodec(nn.Module):
 
         return semantic_tokens, global_tokens
 
-    @torch.no_grad()
     def detokenize(self, semantic_tokens, global_tokens):
         """
         Detokenizes the semantic and global tokens into a waveform.
@@ -195,9 +193,9 @@ class BiCodec(nn.Module):
         Args:
             config (dict): Configuration parameters for MelSpectrogram.
         """
-        import torchaudio.transforms as TT
+        import mindspore.dataset.audio as msaudio
 
-        self.mel_transformer = TT.MelSpectrogram(
+        self.mel_transformer = msaudio.MelSpectrogram(
             config["sample_rate"],
             config["n_fft"],
             config["win_length"],
@@ -210,16 +208,6 @@ class BiCodec(nn.Module):
             mel_scale="slaney",
         )
 
-    def remove_weight_norm(self):
-        """Removes weight normalization from all layers."""
-        def _remove_weight_norm(m):
-            try:
-                torch.nn.utils.remove_weight_norm(m)
-            except ValueError:
-                pass  # The module didn't have weight norm
-
-        self.apply(_remove_weight_norm)
-
 
 # Test the model
 if __name__ == "__main__":
@@ -231,8 +219,8 @@ if __name__ == "__main__":
 
     # Generate random inputs for testing
     duration = 0.96
-    x = torch.randn(20, 1, int(duration * 16000))
-    feat = torch.randn(20, int(duration * 50), 1024)
+    x = mint.randn(20, 1, int(duration * 16000))
+    feat = mint.randn(20, int(duration * 50), 1024)
     inputs = {"feat": feat, "wav": x, "ref_wav": x}
 
     # Forward pass
@@ -241,7 +229,7 @@ if __name__ == "__main__":
     wav_recon = model.detokenize(semantic_tokens, global_tokens)
 
     # Verify if the reconstruction matches
-    if torch.allclose(outputs["recons"].detach(), wav_recon):
+    if mint.allclose(outputs["recons"].detach(), wav_recon):
         print("Test successful")
     else:
         print("Test failed")

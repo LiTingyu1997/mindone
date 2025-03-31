@@ -8,11 +8,10 @@ from functools import wraps, partial
 from contextlib import nullcontext
 from typing import List, Tuple
 
-import torch
-import torch.nn as nn
-from torch.nn import Module
-from torch import Tensor, int32
-from torch.amp import autocast
+import mindspore as ms
+from mindspore import nn, mint
+
+#from torch.amp import autocast
 
 from einops import rearrange, pack, unpack
 
@@ -51,7 +50,7 @@ def unpack_one(t, ps, pattern):
 # tensor helpers
 
 
-def round_ste(z: Tensor) -> Tensor:
+def round_ste(z: ms.Tensor) -> ms.Tensor:
     """Round with straight through gradients."""
     zhat = z.round()
     return z + (zhat - z).detach()
@@ -60,7 +59,7 @@ def round_ste(z: Tensor) -> Tensor:
 # main class
 
 
-class FSQ(Module):
+class FSQ(nn.Cell):
     def __init__(
         self,
         levels: List[int],
@@ -68,17 +67,17 @@ class FSQ(Module):
         num_codebooks=1,
         keep_num_codebooks_dim: bool | None = None,
         scale: float | None = None,
-        allowed_dtypes: Tuple[torch.dtype, ...] = (torch.float32, torch.float64),
+        allowed_dtypes: Tuple[ms.dtype, ...] = (ms.float32, ms.float64),
         channel_first: bool = False,
         projection_has_bias: bool = True,
         return_indices=True,
         force_quantization_f32=True,
     ):
         super().__init__()
-        _levels = torch.tensor(levels, dtype=int32)
+        _levels = ms.tensor(levels, dtype=ms.int32)
         self.register_buffer("_levels", _levels, persistent=False)
 
-        _basis = torch.cumprod(torch.tensor([1] + levels[:-1]), dim=0, dtype=int32)
+        _basis = mint.cumprod(ms.tensor([1] + levels[:-1]), dim=0, dtype=ms.int32)
         self.register_buffer("_basis", _basis, persistent=False)
 
         self.scale = scale
@@ -100,12 +99,12 @@ class FSQ(Module):
 
         has_projections = self.dim != effective_codebook_dim
         self.project_in = (
-            nn.Linear(self.dim, effective_codebook_dim, bias=projection_has_bias)
+            mint.nn.Linear(self.dim, effective_codebook_dim, bias=projection_has_bias)
             if has_projections
             else nn.Identity()
         )
         self.project_out = (
-            nn.Linear(effective_codebook_dim, self.dim, bias=projection_has_bias)
+            mint.nn.Linear(effective_codebook_dim, self.dim, bias=projection_has_bias)
             if has_projections
             else nn.Identity()
         )
@@ -115,7 +114,7 @@ class FSQ(Module):
         self.return_indices = return_indices
         if return_indices:
             self.codebook_size = self._levels.prod().item()
-            implicit_codebook = self._indices_to_codes(torch.arange(self.codebook_size))
+            implicit_codebook = self._indices_to_codes(mint.arange(self.codebook_size))
             self.register_buffer(
                 "implicit_codebook", implicit_codebook, persistent=False
             )
@@ -126,7 +125,7 @@ class FSQ(Module):
     def bound(self, z, eps: float = 1e-3):
         """Bound `z`, an array of shape (..., d)."""
         half_l = (self._levels - 1) * (1 + eps) / 2
-        offset = torch.where(self._levels % 2 == 0, 0.5, 0.0)
+        offset = mint.where(self._levels % 2 == 0, 0.5, 0.0)
         shift = (offset / half_l).atanh()
         return (z + shift).tanh() * half_l - offset
 
@@ -153,7 +152,7 @@ class FSQ(Module):
         """Converts a `code` to an index in the codebook."""
         assert zhat.shape[-1] == self.codebook_dim
         zhat = self._scale_and_shift(zhat)
-        return (zhat * self._basis).sum(dim=-1).to(int32)
+        return (zhat * self._basis).sum(dim=-1).to(ms.int32)
 
     def indices_to_level_indices(self, indices):
         """Converts indices to indices at each level, perhaps needed for a transformer with factorized embeddings"""
@@ -179,7 +178,7 @@ class FSQ(Module):
 
         return codes
 
-    def forward(self, z):
+    def construct(self, z):
         """
         einstein notation
         b - batch

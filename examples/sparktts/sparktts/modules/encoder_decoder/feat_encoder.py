@@ -14,8 +14,8 @@
 # limitations under the License.
 
 
-import torch
-import torch.nn as nn
+import mindspore as ms
+from mindspore import mint, nn
 
 from typing import List
 
@@ -23,7 +23,7 @@ from sparktts.modules.blocks.vocos import VocosBackbone
 from sparktts.modules.blocks.samper import SamplingBlock
 
 
-class Encoder(nn.Module):
+class Encoder(nn.Cell):
     """Encoder module with convnext and downsampling blocks"""
 
     def __init__(
@@ -71,15 +71,15 @@ class Encoder(nn.Module):
 
         self.downsample = nn.Sequential(*modules)
 
-        self.project = nn.Linear(vocos_dim, out_channels)
+        self.project = mint.nn.Linear(vocos_dim, out_channels)
 
-    def forward(self, x: torch.Tensor, *args):
+    def construct(self, x: ms.Tensor, *args):
         """
         Args:
-            x (torch.Tensor): (batch_size, input_channels, length)
+            x (ms.Tensor): (batch_size, input_channels, length)
 
         Returns:
-            x (torch.Tensor): (batch_size, encode_channels, length)
+            x (ms.Tensor): (batch_size, encode_channels, length)
         """
         x = self.encoder(x)
         x = self.downsample(x)
@@ -89,7 +89,7 @@ class Encoder(nn.Module):
 
 # test
 if __name__ == "__main__":
-    test_input = torch.randn(8, 1024, 50)  # Batch size = 8, 1024 channels, length = 50
+    test_input = mint.randn(8, 1024, 50)  # Batch size = 8, 1024 channels, length = 50
     encoder = Encoder(
         input_channels=1024,
         vocos_dim=384,
@@ -101,5 +101,5 @@ if __name__ == "__main__":
 
     output = encoder(test_input)
     print(output.shape)  # torch.Size([8, 256, 12])
-    if output.shape == torch.Size([8, 256, 12]):
+    if output.shape == ms.Size([8, 256, 12]):
         print("test successful")

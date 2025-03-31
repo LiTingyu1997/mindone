@@ -15,7 +15,7 @@
 # Adapted from https://github.com/descriptinc/descript-audio-codec under the Apache License 2.0
 
 
-import torch.nn as nn
+from mindspore import nn
 
 from sparktts.modules.blocks.layers import (
     Snake1d,
@@ -26,7 +26,7 @@ from sparktts.modules.blocks.layers import (
 )
 
 
-class DecoderBlock(nn.Module):
+class DecoderBlock(nn.Cell):
     def __init__(
         self,
         input_dim: int = 16,
@@ -49,11 +49,11 @@ class DecoderBlock(nn.Module):
             ResidualUnit(output_dim, dilation=9),
         )
 
-    def forward(self, x):
+    def construct(self, x):
         return self.block(x)
 
 
-class WaveGenerator(nn.Module):
+class WaveGenerator(nn.Cell):
     def __init__(
         self,
         input_channel,
@@ -84,5 +84,5 @@ class WaveGenerator(nn.Module):
 
         self.apply(init_weights)
 
-    def forward(self, x):
+    def construct(self, x):
         return self.model(x)

@@ -1,12 +1,13 @@
 import random
-import torch
-import torch.nn.functional as F
-import torch.distributed as dist
+import mindspore as ms
+from mindspore import mint
+import mindspore.mint.nn.functional as F
+import mindspore.distributed as dist
 
 from typing import List
-from torch import nn
-from torch.nn import Module
-from torch.amp import autocast
+from mindspore import nn
+
+# from torch.amp import autocast
 from einx import get_at
 from einops import rearrange, reduce, pack, unpack
 
@@ -36,8 +37,8 @@ def is_distributed():
     return dist.is_initialized() and dist.get_world_size() > 1
 
 
-def get_maybe_sync_seed(device, max_size=10_000):
-    rand_int = torch.randint(0, max_size, (), device=device)
+def get_maybe_sync_seed(max_size=10_000):
+    rand_int = mint.randint(0, max_size, ())
 
     if is_distributed():
         dist.all_reduce(rand_int)
@@ -45,7 +46,7 @@ def get_maybe_sync_seed(device, max_size=10_000):
     return rand_int.item()
 
 
-class ResidualFSQ(Module):
+class ResidualFSQ(nn.Cell):
     """Follows Algorithm 1. in https://arxiv.org/pdf/2107.03312.pdf"""
 
     def __init__(
@@ -66,10 +67,10 @@ class ResidualFSQ(Module):
 
         requires_projection = codebook_dim != dim
         self.project_in = (
-            nn.Linear(dim, codebook_dim) if requires_projection else nn.Identity()
+            mint.nn.Linear(dim, codebook_dim) if requires_projection else nn.Identity()
         )
         self.project_out = (
-            nn.Linear(codebook_dim, dim) if requires_projection else nn.Identity()
+            mint.nn.Linear(codebook_dim, dim) if requires_projection else nn.Identity()
         )
         self.has_projections = requires_projection
 
@@ -77,9 +78,9 @@ class ResidualFSQ(Module):
         self.num_quantizers = num_quantizers
 
         self.levels = levels
-        self.layers = nn.ModuleList([])
+        self.layers = nn.CellList([])
 
-        levels_tensor = torch.Tensor(levels)
+        levels_tensor = ms.tensor(levels)
 
         scales = []
 
@@ -94,7 +95,7 @@ class ResidualFSQ(Module):
 
         self.codebook_size = self.layers[0].codebook_size
 
-        self.register_buffer("scales", torch.stack(scales), persistent=False)
+        self.register_buffer("scales", mint.stack(scales), persistent=False)
 
         self.quantize_dropout = quantize_dropout and num_quantizers > 1
 
@@ -106,7 +107,7 @@ class ResidualFSQ(Module):
     @property
     def codebooks(self):
         codebooks = [layer.implicit_codebook for layer in self.layers]
-        codebooks = torch.stack(codebooks, dim=0)
+        codebooks = mint.stack(codebooks, dim=0)
         return codebooks
 
     def get_codes_from_indices(self, indices):
@@ -155,11 +156,10 @@ class ResidualFSQ(Module):
         codes_summed = reduce(codes, "q ... -> ...", "sum")
         return self.project_out(codes_summed)
 
-    def forward(self, x, return_all_codes=False, rand_quantize_dropout_fixed_seed=None):
-        num_quant, quant_dropout_multiple_of, device = (
+    def construct(self, x, return_all_codes=False, rand_quantize_dropout_fixed_seed=None):
+        num_quant, quant_dropout_multiple_of = (
             self.num_quantizers,
-            self.quantize_dropout_multiple_of,
-            x.device,
+            self.quantize_dropout_multiple_of
         )
 
         # handle channel first
@@ -186,10 +186,10 @@ class ResidualFSQ(Module):
 
             # check if seed is manually passed in
 
-            if not exists(rand_quantize_dropout_fixed_seed):
-                rand_quantize_dropout_fixed_seed = get_maybe_sync_seed(device)
+            # if not exists(rand_quantize_dropout_fixed_seed):
+            #     rand_quantize_dropout_fixed_seed = get_maybe_sync_seed(device)
 
-            rand = random.Random(rand_quantize_dropout_fixed_seed)
+            # rand = random.Random(rand_quantize_dropout_fixed_seed)
 
             rand_quantize_dropout_index = rand.randrange(
                 self.quantize_dropout_cutoff_index, num_quant
@@ -203,8 +203,8 @@ class ResidualFSQ(Module):
                     - 1
                 )
 
-            null_indices = torch.full(
-                x.shape[:2], -1.0, device=device, dtype=torch.long
+            null_indices = mint.full(
+                x.shape[:2], -1.0, dtype=ms.int64
             )
 
         # go through the layers
@@ -236,7 +236,7 @@ class ResidualFSQ(Module):
 
         # stack all indices
 
-        all_indices = torch.stack(all_indices, dim=-1)
+        all_indices = mint.stack(all_indices, dim=-1)
 
         # channel first out
 
@@ -266,7 +266,7 @@ class ResidualFSQ(Module):
 # grouped residual fsq
 
 
-class GroupedResidualFSQ(Module):
+class GroupedResidualFSQ(nn.Cell):
     def __init__(self, *, dim, groups=1, accept_image_fmap=False, **kwargs):
         super().__init__()
         self.dim = dim
@@ -276,7 +276,7 @@ class GroupedResidualFSQ(Module):
 
         self.accept_image_fmap = accept_image_fmap
 
-        self.rvqs = nn.ModuleList([])
+        self.rvqs = nn.CellList([])
 
         for _ in range(groups):
             self.rvqs.append(ResidualFSQ(dim=dim_per_group, **kwargs))
@@ -285,7 +285,7 @@ class GroupedResidualFSQ(Module):
 
     @property
     def codebooks(self):
-        return torch.stack(tuple(rvq.codebooks for rvq in self.rvqs))
+        return mint.stack(tuple(rvq.codebooks for rvq in self.rvqs))
 
     @property
     def split_dim(self):
@@ -296,17 +296,17 @@ class GroupedResidualFSQ(Module):
             rvq.get_codes_from_indices(chunk_indices)
             for rvq, chunk_indices in zip(self.rvqs, indices)
         )
-        return torch.stack(codes)
+        return mint.stack(codes)
 
     def get_output_from_indices(self, indices):
         outputs = tuple(
             rvq.get_output_from_indices(chunk_indices)
             for rvq, chunk_indices in zip(self.rvqs, indices)
         )
-        return torch.cat(outputs, dim=self.split_dim)
+        return mint.cat(outputs, dim=self.split_dim)
 
-    def forward(self, x, return_all_codes=False):
-        shape, split_dim, device = x.shape, self.split_dim, x.device
+    def construct(self, x, return_all_codes=False):
+        shape, split_dim = x.shape, self.split_dim
         assert shape[split_dim] == self.dim
 
         # split the feature dimension into groups
@@ -315,9 +315,9 @@ class GroupedResidualFSQ(Module):
 
         forward_kwargs = dict(
             return_all_codes=return_all_codes,
-            rand_quantize_dropout_fixed_seed=(
-                get_maybe_sync_seed(device) if self.training else None
-            ),
+            # rand_quantize_dropout_fixed_seed=(
+            #     get_maybe_sync_seed(device) if self.training else None
+            # ),
         )
 
         # invoke residual vq on each group
@@ -329,8 +329,8 @@ class GroupedResidualFSQ(Module):
 
         quantized, all_indices, *maybe_all_codes = out
 
-        quantized = torch.cat(quantized, dim=split_dim)
-        all_indices = torch.stack(all_indices)
+        quantized = mint.cat(quantized, dim=split_dim)
+        all_indices = mint.stack(all_indices)
 
         ret = (quantized, all_indices, *maybe_all_codes)
         return ret
@@ -344,7 +344,7 @@ if __name__ == "__main__":
         is_channel_first=True,
         quantize_dropout=False,
     )
-    x = torch.randn(2, 30, 10)
+    x = mint.randn(2, 30, 10)
     quantize, embed_ind = model(x)
 
     emb_from_ind = model.get_output_from_indices(embed_ind.transpose(1, 2))
