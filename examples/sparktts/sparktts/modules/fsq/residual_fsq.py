@@ -8,8 +8,8 @@ from typing import List
 from mindspore import nn
 
 # from torch.amp import autocast
-from einx import get_at
-from einops import rearrange, reduce, pack, unpack
+
+from einops import pack, unpack
 
 from sparktts.modules.fsq.finite_scalar_quantization import FSQ
 
@@ -33,17 +33,17 @@ def round_up_multiple(num, mult):
 # distributed helpers
 
 
-def is_distributed():
-    return dist.is_initialized() and dist.get_world_size() > 1
+# def is_distributed():
+#     return dist.is_initialized() and dist.get_world_size() > 1
 
 
-def get_maybe_sync_seed(max_size=10_000):
-    rand_int = mint.randint(0, max_size, ())
+# def get_maybe_sync_seed(max_size=10_000):
+#     rand_int = mint.randint(0, max_size, ())
 
-    if is_distributed():
-        dist.all_reduce(rand_int)
+#     if is_distributed():
+#         dist.all_reduce(rand_int)
 
-    return rand_int.item()
+#     return rand_int.item()
 
 
 class ResidualFSQ(nn.Cell):
@@ -116,7 +116,8 @@ class ResidualFSQ(nn.Cell):
 
         # may also receive indices in the shape of 'b h w q' (accept_image_fmap)
 
-        indices, ps = pack([indices], "b * q")
+        #indices, ps = pack([indices], "b * q")
+        _, ps, _ = indices.shape
 
         # because of quantize dropout, one can pass in indices that are coarse
         # and the network should be able to reconstruct
@@ -134,26 +135,36 @@ class ResidualFSQ(nn.Cell):
             mask, 0
         )  # have it fetch a dummy code to be masked out later
 
-        all_codes = get_at("q [c] d, b n q -> q b n d", self.codebooks, indices)
+        #all_codes = get_at("q [c] d, b n q -> q b n d", self.codebooks, indices)
+        _, _, d = self.codebooks.shape
+        # 扩展 indices 以匹配 codebooks 的维度
+        indices = indices.unsqueeze(-1).expand(-1, -1, -1, d)  # shape (b, n, q, d)
+        # 按码本 q 分组提取
+        all_codes = mint.gather(
+            self.codebooks.unsqueeze(0).unsqueeze(0),  # shape (1, 1, q, c, d)
+            dim=3,                                # 在 c 维度上索引
+            index=indices.permute(2, 0, 1, 3)     # shape (q, b, n, d)
+        )
 
         # mask out any codes that were dropout-ed
 
-        all_codes = all_codes.masked_fill(rearrange(mask, "b n q -> q b n 1"), 0.0)
+        all_codes = all_codes.masked_fill(mask.permute(2, 0, 1).unsqueeze(-1), 0.0)
 
         # scale the codes
 
-        scales = rearrange(self.scales, "q d -> q 1 1 d")
+        scales = scales.unsqueeze(1).unsqueeze(1)
         all_codes = all_codes * scales
 
         # if (accept_image_fmap = True) then return shape (quantize, batch, height, width, dimension)
 
-        (all_codes,) = unpack(all_codes, ps, "q b * d")
+        #(all_codes,) = unpack(all_codes, ps, "q b * d")
 
         return all_codes
 
     def get_output_from_indices(self, indices):
         codes = self.get_codes_from_indices(indices)
-        codes_summed = reduce(codes, "q ... -> ...", "sum")
+        codes_summed = codes.sum(dim=0)
+        #codes_summed = reduce(codes, "q ... -> ...", "sum")
         return self.project_out(codes_summed)
 
     def construct(self, x, return_all_codes=False, rand_quantize_dropout_fixed_seed=None):
@@ -165,8 +176,9 @@ class ResidualFSQ(nn.Cell):
         # handle channel first
 
         if self.is_channel_first:
-            x = rearrange(x, "b d ... -> b ... d")
-            x, ps = pack([x], "b * d")
+            x = x.movedim(1, -1)
+            _, ps, _ = x.shape
+            #x, ps = pack([x], "b * d")
 
         # maybe project in
 
@@ -182,53 +194,53 @@ class ResidualFSQ(nn.Cell):
         # sample a layer index at which to dropout further residual quantization
         # also prepare null indices
 
-        if should_quantize_dropout:
+        # if should_quantize_dropout:
 
-            # check if seed is manually passed in
+        #     # check if seed is manually passed in
 
-            # if not exists(rand_quantize_dropout_fixed_seed):
-            #     rand_quantize_dropout_fixed_seed = get_maybe_sync_seed(device)
+        #     # if not exists(rand_quantize_dropout_fixed_seed):
+        #     #     rand_quantize_dropout_fixed_seed = get_maybe_sync_seed(device)
 
-            # rand = random.Random(rand_quantize_dropout_fixed_seed)
+        #     # rand = random.Random(rand_quantize_dropout_fixed_seed)
 
-            rand_quantize_dropout_index = rand.randrange(
-                self.quantize_dropout_cutoff_index, num_quant
-            )
+        #     rand_quantize_dropout_index = rand.randrange(
+        #         self.quantize_dropout_cutoff_index, num_quant
+        #     )
 
-            if quant_dropout_multiple_of != 1:
-                rand_quantize_dropout_index = (
-                    round_up_multiple(
-                        rand_quantize_dropout_index + 1, quant_dropout_multiple_of
-                    )
-                    - 1
-                )
+        #     if quant_dropout_multiple_of != 1:
+        #         rand_quantize_dropout_index = (
+        #             round_up_multiple(
+        #                 rand_quantize_dropout_index + 1, quant_dropout_multiple_of
+        #             )
+        #             - 1
+        #         )
 
-            null_indices = mint.full(
-                x.shape[:2], -1.0, dtype=ms.int64
-            )
+        #     null_indices = mint.full(
+        #         x.shape[:2], -1.0, dtype=ms.int64
+        #     )
 
         # go through the layers
 
-        with autocast("cuda", enabled=False):
-            for quantizer_index, (layer, scale) in enumerate(
-                zip(self.layers, self.scales)
-            ):
+        # with autocast("cuda", enabled=False):
+        #     for quantizer_index, (layer, scale) in enumerate(
+        #         zip(self.layers, self.scales)
+        #     ):
 
-                if (
-                    should_quantize_dropout
-                    and quantizer_index > rand_quantize_dropout_index
-                ):
-                    all_indices.append(null_indices)
-                    continue
+        #         if (
+        #             should_quantize_dropout
+        #             and quantizer_index > rand_quantize_dropout_index
+        #         ):
+        #             all_indices.append(null_indices)
+        #             continue
 
-                quantized, indices = layer(residual / scale)
+        #         quantized, indices = layer(residual / scale)
 
-                quantized = quantized * scale
+        #         quantized = quantized * scale
 
-                residual = residual - quantized.detach()
-                quantized_out = quantized_out + quantized
+        #         residual = residual - quantized.detach()
+        #         quantized_out = quantized_out + quantized
 
-                all_indices.append(indices)
+        #         all_indices.append(indices)
 
         # project out, if needed
 
@@ -241,11 +253,11 @@ class ResidualFSQ(nn.Cell):
         # channel first out
 
         if self.is_channel_first:
-            (quantized_out,) = unpack(quantized_out, ps, "b * d")
-            (all_indices,) = unpack(all_indices, ps, "b * d")
+            # (quantized_out,) = unpack(quantized_out, ps, "b * d")
+            # (all_indices,) = unpack(all_indices, ps, "b * d")
 
-            quantized_out = rearrange(quantized_out, "b ... d -> b d ...")
-            all_indices = rearrange(all_indices, "b ... d -> b d ...")
+            quantized_out = quantized_out.movedim(-1, 1)
+            all_indices = all_indices.movedim(-1, 1)
 
         # return
 

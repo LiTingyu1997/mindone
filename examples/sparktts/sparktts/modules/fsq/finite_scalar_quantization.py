@@ -13,7 +13,7 @@ from mindspore import nn, mint
 
 #from torch.amp import autocast
 
-from einops import rearrange, pack, unpack
+from einops import pack, unpack
 
 # helper functions
 
@@ -40,11 +40,14 @@ def maybe(fn):
 
 
 def pack_one(t, pattern):
-    return pack([t], pattern)
+    t = t.numpy()
+    return ms.tensor(pack([t], pattern))
 
 
 def unpack_one(t, ps, pattern):
-    return unpack(t, ps, pattern)[0]
+    t = t.numpy()
+    ps = ps.numpy()
+    return ms.tensor(unpack(t, ps, pattern)[0])
 
 
 # tensor helpers
@@ -154,7 +157,7 @@ class FSQ(nn.Cell):
 
     def indices_to_level_indices(self, indices):
         """Converts indices to indices at each level, perhaps needed for a transformer with factorized embeddings"""
-        indices = rearrange(indices, "... -> ... 1")
+        indices = indices.unsqueeze(-1)
         codes_non_centered = (indices // self._basis) % self._levels
         return codes_non_centered
 
@@ -167,12 +170,12 @@ class FSQ(nn.Cell):
         codes = self._indices_to_codes(indices)
 
         if self.keep_num_codebooks_dim:
-            codes = rearrange(codes, "... c d -> ... (c d)")
+            codes = codes.flatten(-2)
 
         codes = self.project_out(codes)
 
         if is_img_or_video or self.channel_first:
-            codes = rearrange(codes, "b ... d -> b d ...")
+            codes = codes.permute(0, 3, 1, 2)
 
         return codes
 
@@ -191,7 +194,7 @@ class FSQ(nn.Cell):
         # standardize image or video into (batch, seq, dimension)
 
         if need_move_channel_last:
-            z = rearrange(z, "b d ... -> b ... d")
+            z = z.permute(0, 2, 3, 1)
             z, ps = pack_one(z, "b * d")
 
         assert (
@@ -200,33 +203,36 @@ class FSQ(nn.Cell):
 
         z = self.project_in(z)
 
-        z = rearrange(z, "b n (c d) -> b n c d", c=self.num_codebooks)
+        b, n, cd = z.shape
+        c = self.num_codebooks
+        d = cd // c
+        z = z.reshape(b, n, c, d)
 
         # whether to force quantization step to be full precision or not
 
-        force_f32 = self.force_quantization_f32
-        quantization_context = (
-            partial(autocast, "cuda", enabled=False) if force_f32 else nullcontext
-        )
+        # force_f32 = self.force_quantization_f32
+        # quantization_context = (
+        #     partial(autocast, "cuda", enabled=False) if force_f32 else nullcontext
+        # )
 
-        with quantization_context():
-            orig_dtype = z.dtype
+        # with quantization_context():
+        orig_dtype = z.dtype
 
-            if force_f32 and orig_dtype not in self.allowed_dtypes:
-                z = z.float()
+        #if force_f32 and orig_dtype not in self.allowed_dtypes:
+        z = z.float()
 
-            codes = self.quantize(z)
+        codes = self.quantize(z)
 
-            # returning indices could be optional
+        # returning indices could be optional
 
-            indices = None
+        indices = None
 
-            if self.return_indices:
-                indices = self.codes_to_indices(codes)
+        if self.return_indices:
+            indices = self.codes_to_indices(codes)
 
-            codes = rearrange(codes, "b n c d -> b n (c d)")
+        codes = codes.flatten(start_dim=2)
 
-            codes = codes.type(orig_dtype)
+        codes = codes.type(orig_dtype)
 
         # project out
 
@@ -236,12 +242,12 @@ class FSQ(nn.Cell):
 
         if need_move_channel_last:
             out = unpack_one(out, ps, "b * d")
-            out = rearrange(out, "b ... d -> b d ...")
+            out = out.permute(0, 3, 1, 2)
 
             indices = maybe(unpack_one)(indices, ps, "b * c")
 
         if not self.keep_num_codebooks_dim and self.return_indices:
-            indices = maybe(rearrange)(indices, "... 1 -> ...")
+            indices = maybe(mint.squeeze)(indices, -1)
 
         # return quantized output and indices
 
