@@ -1161,7 +1161,7 @@ class Wav2Vec2PreTrainedModel(MSPreTrainedModel):
                 )
             )
             if module.bias is not None:
-                k = math.sqrt(module.groups / (module.in_channels * module.kernel_size[0]))
+                k = math.sqrt(module.group / (module.in_channels * module.kernel_size[0]))
                 module.bias.set_data(initializer(
                     Uniform(scale=k),
                     shape=module.bias.shape,
