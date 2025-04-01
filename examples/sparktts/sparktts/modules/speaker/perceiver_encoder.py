@@ -22,7 +22,6 @@ from mindspore import nn, mint, Parameter
 import mindspore.mint.nn.functional as F
 from mindspore.common.initializer import Normal, initializer
 
-# from einops import rearrange, repeat
 from packaging import version
 
 
@@ -334,8 +333,8 @@ class PerceiverResampler(nn.Cell):
         batch = x.shape[0]
 
         x = self.proj_context(x)
-
-        latents = repeat(self.latents, "n d -> b n d", b=batch)
+        latents = latents.unsqueeze(0).repeat(batch, 1, 1)
+        #latents = repeat(self.latents, "n d -> b n d", b=batch)
 
         for attn, ff in self.layers:
             latents = attn(latents, x, mask=mask) + latents
