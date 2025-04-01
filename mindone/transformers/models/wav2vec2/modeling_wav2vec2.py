@@ -23,6 +23,7 @@ import numpy as np
 import mindspore as ms
 from mindspore import nn, mint, Parameter
 from mindspore.mint.nn import CrossEntropyLoss
+from mindspore.common.initializer import initializer, Constant, Uniform, HeNormal, One, Zero, Normal
 
 from ...activations import ACT2FN
 
@@ -1096,34 +1097,75 @@ class Wav2Vec2PreTrainedModel(MSPreTrainedModel):
             module.project_q._is_hf_initialized = True
         # gumbel softmax requires special init
         elif isinstance(module, Wav2Vec2GumbelVectorQuantizer):
-            module.weight_proj.weight.data.normal_(mean=0.0, std=1)
-            module.weight_proj.bias.data.zero_()
-            nn.init.uniform_(module.codevectors)
+            module.weight_proj.weight.set_data(initializer
+                    (Normal(mean=0.0, sigma=1),
+                    shape=module.weight_proj.weight.shape,
+                    dtype=module.weight_proj.weight.dtype))
+            module.weight_proj.bias.set_data(initializer(
+                    Zero(),
+                    shape=module.weight_proj.bias.shape,
+                    dtype=module.weight_proj.bias.dtype))
+            module.codevectors.set_data(initializer(
+                    Uniform(scale=k),
+                    shape=module.codevectors.shape,
+                    dtype=module.codevectors.dtype))
         elif isinstance(module, Wav2Vec2PositionalConvEmbedding):
-            nn.init.normal_(
-                module.conv.weight,
-                mean=0,
-                std=2 * math.sqrt(1 / (module.conv.kernel_size[0] * module.conv.in_channels)),
-            )
-            nn.init.constant_(module.conv.bias, 0)
+            module.conv.weight.set_data(initializer(
+                    Normal(mean=0, sigma=2 * math.sqrt(1 / (module.conv.kernel_size[0] * module.conv.in_channels))),
+                    shape=module.conv.weight.shape,
+                    dtype=module.conv.weight.dtype))
+            module.conv.bias.set_data(initializer(
+                    Constant(0),
+                    shape=module.conv.bias.shape,
+                    dtype=module.conv.bias.dtype))
         elif isinstance(module, Wav2Vec2FeatureProjection):
             k = math.sqrt(1 / module.projection.in_features)
-            nn.init.uniform_(module.projection.weight, a=-k, b=k)
-            nn.init.uniform_(module.projection.bias, a=-k, b=k)
+            module.projection.weight.set_data(initializer(
+                    Uniform(scale=k),
+                    shape=module.projection.weight.shape,
+                    dtype=module.projection.weight.dtype))
+            module.projection.bias.set_data(initializer(
+                    Uniform(scale=k),
+                    shape=module.projection.bias.shape,
+                    dtype=module.projection.bias.dtype))
         elif isinstance(module, mint.nn.Linear):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
-
+            module.weight.set_data(initializer(
+                    Normal(mean=0.0, sigma=self.config.initializer_range),
+                    shape=module.weight.shape,
+                    dtype=module.weight.dtype))
             if module.bias is not None:
-                module.bias.data.zero_()
+                module.bias.set_data(initializer(
+                    Zero(),
+                    shape=module.bias.shape,
+                    dtype=module.bias.dtype
+                    )
+                )
         elif isinstance(module, (mint.nn.LayerNorm, mint.nn.LayerNorm)):
-            module.bias.data.zero_()
-            module.weight.data.fill_(1.0)
+            module.bias.set_data(initializer(
+                Zero(),
+                shape=module.bias.shape,
+                dtype=module.bias.dtype
+                )
+            )
+            module.weight.set_data(initializer(
+                One(),
+                shape=module.weight.shape,
+                dtype=module.weight.dtype
+                )
+            )
         elif isinstance(module, nn.Conv1d):
-            nn.init.kaiming_normal_(module.weight)
-
+            module.weight.set_data(initializer(
+                HeNormal(),
+                shape=module.weight.shape,
+                dtype=module.weight.dtype
+                )
+            )
             if module.bias is not None:
                 k = math.sqrt(module.groups / (module.in_channels * module.kernel_size[0]))
-                nn.init.uniform_(module.bias, a=-k, b=k)
+                module.bias.set_data(initializer(
+                    Uniform(scale=k),
+                    shape=module.bias.shape,
+                    dtype=module.bias.dtype))
 
     def _get_feat_extract_output_lengths(
         self, input_lengths: Union[ms.Tensor, int], add_adapter: Optional[bool] = None
