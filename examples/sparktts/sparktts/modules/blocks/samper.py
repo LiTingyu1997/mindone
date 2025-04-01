@@ -78,7 +78,7 @@ class SamplingBlock(nn.Cell):
     def skip_downsampler(x, downsample_scale):
         return F.avg_pool1d(x, kernel_size=downsample_scale, stride=downsample_scale)
 
-    def forward(self, x):
+    def construct(self, x):
         x = x.transpose(1, 2)
         if self.upsample_scale > 1:
             repeat_res = self.repeat_upsampler(x, self.upsample_scale)

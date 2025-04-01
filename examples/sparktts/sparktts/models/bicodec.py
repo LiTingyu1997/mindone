@@ -162,7 +162,7 @@ class BiCodec(nn.Cell):
             tuple: Semantic tokens and global tokens.
         """
         feat = batch["feat"]
-        mel = self.mel_transformer(batch["ref_wav"]).squeeze(1)
+        mel = ms.tensor(self.mel_transformer(batch["ref_wav"].numpy())).squeeze(1)
 
         z = self.encoder(feat.transpose(1, 2))
         semantic_tokens = self.quantizer.tokenize(z)
