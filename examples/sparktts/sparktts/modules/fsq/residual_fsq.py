@@ -80,7 +80,7 @@ class ResidualFSQ(nn.Cell):
         self.levels = levels
         self.layers = nn.CellList([])
 
-        levels_tensor = ms.tensor(levels)
+        levels_tensor = ms.tensor(list(levels))
 
         scales = []
 
