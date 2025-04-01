@@ -579,7 +579,7 @@ class Wav2Vec2Attention(nn.Cell):
         key_states = key_states.reshape(*proj_shape)
         value_states = value_states.reshape(*proj_shape)
 
-        src_len = key_states.size(1)
+        src_len = key_states.shape[1]
         attn_weights = mint.bmm(query_states, key_states.transpose(1, 2))
 
         if attn_weights.shape != (bsz * self.num_heads, tgt_len, src_len):
@@ -1770,7 +1770,7 @@ class Wav2Vec2ForPreTraining(Wav2Vec2PreTrainedModel):
 
             # 6. compute contrastive loss \mathbf{L}_m = cross_entropy(logs) =
             # -log(exp(sim(c_t, q_t)/\kappa) / \sum_{\sim{q}} exp(sim(c_t, \sim{q})/\kappa))
-            logits = logits.transpose(0, 2).reshape(-1, logits.size(0))
+            logits = logits.transpose(0, 2).reshape(-1, logits.shape[0])
             target = ((1 - mask_time_indices.long()) * -100).transpose(0, 1).flatten()
 
             contrastive_loss = mint.nn.functional.cross_entropy(logits.float(), target, reduction="sum")
