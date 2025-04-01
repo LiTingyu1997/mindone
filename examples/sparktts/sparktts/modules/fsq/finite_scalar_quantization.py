@@ -81,7 +81,7 @@ class FSQ(nn.Cell):
         self._levels = _levels
 
         _basis = mint.cumprod(ms.tensor([1] + levels[:-1]), dim=0, dtype=ms.int32)
-        self_basis = _basis
+        self._basis = _basis
 
         self.scale = scale
 
