@@ -74,7 +74,7 @@ class FSQ(nn.Cell):
         force_quantization_f32=True,
     ):
         super().__init__()
-        _levels = ms.tensor(levels, dtype=ms.int32)
+        _levels = ms.tensor(list(levels), dtype=ms.int32)
         self._levels = _levels
 
         _basis = mint.cumprod(ms.tensor([1] + levels[:-1]), dim=0, dtype=ms.int32)
