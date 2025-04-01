@@ -55,9 +55,9 @@ class ResidualUnit(nn.Cell):
         pad = ((7 - 1) * dilation) // 2
         self.block = nn.SequentialCell(
             Snake1d(dim),
-            WNConv1d(dim, dim, kernel_size=7, dilation=dilation, padding=pad),
+            WNConv1d(dim, dim, kernel_size=7, dilation=dilation, padding=pad, pad_mode="pad", has_bias=True),
             Snake1d(dim),
-            WNConv1d(dim, dim, kernel_size=1),
+            WNConv1d(dim, dim, kernel_size=1, has_bias=True),
         )
 
     def construct(self, x):
