@@ -167,7 +167,9 @@ class FactorizedVectorQuantize(nn.Cell):
         return self.embed_code(embed_id).transpose(1, 2)
 
     def decode_latents(self, latents):
-        encodings = rearrange(latents, "b d t -> (b t) d")
+        b, d, t = latents.shape
+        encodings = latents.reshape(b * t, d)
+        #encodings = rearrange(latents, "b d t -> (b t) d")
         codebook = self.codebook.weight
 
         # L2 normalize encodings and codebook
@@ -181,7 +183,9 @@ class FactorizedVectorQuantize(nn.Cell):
             - 2 * encodings @ codebook.t()
             + codebook.pow(2).sum(1, keepdim=True).t()
         )
-        indices = rearrange((-dist).max(1)[1], "(b t) -> b t", b=latents.size(0))
+        b = latents.shape[0]
+        indices = (-dist).max(1)[1].reshape(b, -1)
+        #indices = rearrange((-dist).max(1)[1], "(b t) -> b t", b=latents.size(0))
         z_q = self.decode_code(indices)
 
         return z_q, indices, dist
