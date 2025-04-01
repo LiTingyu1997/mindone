@@ -102,7 +102,7 @@ class Conv1dReluBn(nn.Cell):
     ):
         super().__init__()
         self.conv = nn.Conv1d(
-            in_channels, out_channels, kernel_size, stride, pad_mode="pad", padding=padding, dilation=dilation, has_bias=bias
+            in_channels, out_channels, kernel_size, stride=stride, pad_mode="pad", padding=padding, dilation=dilation, has_bias=bias
         )
         self.bn = nn.BatchNorm1d(out_channels)
 
