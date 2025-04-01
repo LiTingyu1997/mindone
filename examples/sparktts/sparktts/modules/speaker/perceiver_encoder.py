@@ -22,7 +22,7 @@ from mindspore import nn, mint, Parameter
 import mindspore.mint.nn.functional as F
 from mindspore.common.initializer import Normal, initializer
 
-from einops import rearrange, repeat
+# from einops import rearrange, repeat
 from packaging import version
 
 
@@ -134,12 +134,12 @@ class Attend(nn.Cell):
 
         # similarity
 
-        sim = einsum(f"b h i d, {kv_einsum_eq} -> b h i j", q, k) * scale
+        sim = mint.einsum(f"b h i d, {kv_einsum_eq} -> b h i j", q, k) * scale
 
         # key padding mask
 
         if exists(mask):
-            mask = rearrange(mask, "b j -> b 1 1 j")
+            mask = mask.unsqueeze(1).unsqueeze(1)
             sim = sim.masked_fill(~mask, -mint.finfo(sim.dtype).max)
 
         # causal mask
@@ -155,7 +155,7 @@ class Attend(nn.Cell):
 
         # aggregate values
 
-        out = einsum(f"b h i j, {kv_einsum_eq} -> b h i d", attn, v)
+        out = mint.einsum(f"b h i j, {kv_einsum_eq} -> b h i d", attn, v)
 
         return out
 
@@ -192,7 +192,7 @@ class RMSNorm(nn.Cell):
 
         assert exists(cond)
         gamma, beta = self.to_gamma_beta(cond).chunk(2, dim=-1)
-        gamma, beta = map(lambda t: rearrange(t, "b d -> b 1 d"), (gamma, beta))
+        gamma, beta = map(lambda t: mint.unsqueeze(t, 1), (gamma, beta))
         return out * gamma + beta
 
 
@@ -268,11 +268,18 @@ class Attention(nn.Cell):
             context = mint.cat((x, context), dim=-2)
 
         q, k, v = (self.to_q(x), *self.to_kv(context).chunk(2, dim=-1))
-        q, k, v = map(lambda t: rearrange(t, "b n (h d) -> b h n d", h=h), (q, k, v))
+        
+        b, n, _ = q.shape
+        q = q.view(b, n, h, -1).permute(0, 2, 1, 3)
+        b, n, _ = k.shape
+        k = k.view(b, n, h, -1).permute(0, 2, 1, 3)
+        b, n, _ = v.shape
+        v = v.view(b, n, h, -1).permute(0, 2, 1, 3)
+        #q, k, v = map(lambda t: rearrange(t, "b n (h d) -> b h n d", h=h), (q, k, v))
 
         out = self.attend(q, k, v, mask=mask)
-
-        out = rearrange(out, "b h n d -> b n (h d)")
+        b_out, h_out, n_out, d_out = out.shape
+        out = out.reshape(b_out, n_out, h_out * d_out)
         return self.to_out(out)
 
 
