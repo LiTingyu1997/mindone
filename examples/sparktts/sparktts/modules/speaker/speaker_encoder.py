@@ -78,7 +78,7 @@ class SpeakerEncoder(nn.Cell):
         zq, indices = self.quantizer(x)
         return indices
 
-    def forward(self, mels: ms.Tensor) -> Tuple[ms.Tensor, ms.Tensor]:
+    def construct(self, mels: ms.Tensor) -> Tuple[ms.Tensor, ms.Tensor]:
         """
         Args:
             mels: (B, D_mel, T1)
