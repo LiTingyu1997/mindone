@@ -118,8 +118,8 @@ class SE_Connect(nn.Cell):
 
     def __init__(self, channels, se_bottleneck_dim=128):
         super().__init__()
-        self.linear1 = nn.Linear(channels, se_bottleneck_dim)
-        self.linear2 = nn.Linear(se_bottleneck_dim, channels)
+        self.linear1 = mint.nn.Linear(channels, se_bottleneck_dim)
+        self.linear2 = mint.nn.Linear(se_bottleneck_dim, channels)
 
     def construct(self, x):
         out = x.mean(dim=2)
@@ -177,13 +177,13 @@ class ECAPA_TDNN(nn.Cell):
 
         cat_channels = channels * 3
         out_channels = 512 * 3
-        self.conv = nn.Conv1d(cat_channels, out_channels, kernel_size=1)
+        self.conv = nn.Conv1d(cat_channels, out_channels, kernel_size=1, has_bias=True)
         self.pool = getattr(pooling_layers, pooling_func)(
             in_dim=out_channels, global_context_att=global_context_att
         )
         self.pool_out_dim = self.pool.get_out_dim()
         self.bn = nn.BatchNorm1d(self.pool_out_dim)
-        self.linear = nn.Linear(self.pool_out_dim, embed_dim)
+        self.linear = mint.nn.Linear(self.pool_out_dim, embed_dim)
         self.emb_bn = emb_bn
         if emb_bn:  # better in SSL for SV
             self.bn2 = nn.BatchNorm1d(embed_dim)
