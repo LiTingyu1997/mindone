@@ -51,7 +51,7 @@ class SamplingBlock(nn.Cell):
                     stride=upsample_scale,
                     padding=upsample_scale // 2 + upsample_scale % 2,
                     output_padding=upsample_scale % 2,
-                    groups=groups,
+                    group=groups,
                 ),
             )
 
@@ -64,7 +64,7 @@ class SamplingBlock(nn.Cell):
                     kernel_size=2 * downsample_scale,
                     stride=downsample_scale,
                     padding=downsample_scale // 2 + downsample_scale % 2,
-                    groups=groups,
+                    group=groups,
                     pad_mode="pad", 
                     has_bias=True,
                 ),

@@ -44,7 +44,7 @@ class ConvNeXtBlock(nn.Cell):
     ):
         super().__init__()
         self.dwconv = nn.Conv1d(
-            dim, dim, kernel_size=7, padding=3, groups=dim, pad_mode="pad", has_bias=True,
+            dim, dim, kernel_size=7, padding=3, group=dim, pad_mode="pad", has_bias=True,
         )  # depthwise conv
         self.adanorm = condition_dim is not None
         if condition_dim:
