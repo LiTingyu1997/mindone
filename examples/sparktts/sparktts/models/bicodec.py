@@ -19,6 +19,8 @@ from pathlib import Path
 from typing import Dict, Any
 from omegaconf import DictConfig
 # from safetensors.torch import load_file
+from mindone.diffusers.models.model_loading_utils import load_state_dict
+from mindone.diffusers.models.modeling_utils import _convert_state_dict
 
 from sparktts.utils.file import load_config
 from sparktts.modules.speaker.speaker_encoder import SpeakerEncoder
@@ -97,13 +99,14 @@ class BiCodec(nn.Cell):
             postnet=postnet,
         )
 
-        state_dict = load_file(ckpt_path)
-        missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+        state_dict = load_state_dict(ckpt_path)
+        state_dict = _convert_state_dict(model, state_dict)
+        missing_keys, unexpected_keys = ms.load_param_into_net(model, state_dict)
 
         for key in missing_keys:
-            print(f"Missing tensor: {key}")
+            print(f"param_not_load: {key}")
         for key in unexpected_keys:
-            print(f"Unexpected tensor: {key}")
+            print(f"ckpt_not_load: {key}")
 
         # model.eval()
         # model.remove_weight_norm()
@@ -200,12 +203,12 @@ class BiCodec(nn.Cell):
             config["n_fft"],
             config["win_length"],
             config["hop_length"],
-            config["mel_fmin"],
+            float(config["mel_fmin"]),
             config["mel_fmax"],
             n_mels=config["num_mels"],
             power=1,
-            norm="slaney",
-            mel_scale="slaney",
+            norm=msaudio.NormType.SLANEY,
+            mel_scale=msaudio.MelType.SLANEY,
         )
 
 
