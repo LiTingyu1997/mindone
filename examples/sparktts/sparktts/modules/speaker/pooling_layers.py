@@ -177,7 +177,7 @@ class MHASTP(nn.Cell):
         channel_dims[0], channel_dims[-1] = d_model, d_s
         heads_att_trans = []
         for i in range(self.head_num):
-            att_trans = nn.Sequential()
+            att_trans = nn.SequentialCell()
             for i in range(layer_num - 1):
                 att_trans.add_module(
                     'att_' + str(i),

@@ -17,7 +17,7 @@
 
 
 import mindspore as ms
-from mindspore import nn, mint
+from mindspore import nn, mint, Parameter
 from mindspore.common.initializer import initializer, Constant, TruncatedNormal
 from mindone.utils import WeightNorm
 
@@ -43,7 +43,7 @@ def snake(x, alpha):
 class Snake1d(nn.Cell):
     def __init__(self, channels):
         super().__init__()
-        self.alpha = nn.Parameter(mint.ones(1, channels, 1))
+        self.alpha = Parameter(mint.ones(1, channels, 1))
 
     def construct(self, x):
         return snake(x, self.alpha)
