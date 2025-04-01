@@ -1113,13 +1113,13 @@ class Wav2Vec2PreTrainedModel(MSPreTrainedModel):
         # for name, _ in module.cells_and_names():
         #     if "weight_norm_cell" in name:
             module.conv.weight_norm_cell.weight.set_data(initializer(
-                    Normal(mean=0, sigma=2 * math.sqrt(1 / (module.conv.kernel_size[0] * module.conv.in_channels))),
-                    shape=module.conv.weight.shape,
-                    dtype=module.conv.weight.dtype))
+                    Normal(mean=0, sigma=2 * math.sqrt(1 / (module.conv.kernel_size[0] * module.conv.weight_norm_cell.in_channels))),
+                    shape=module.conv.weight_norm_cell.weight.shape,
+                    dtype=module.conv.weight_norm_cell.weight.dtype))
             module.conv.weight_norm_cell.bias.set_data(initializer(
                     Constant(0),
-                    shape=module.conv.bias.shape,
-                    dtype=module.conv.bias.dtype))
+                    shape=module.conv.weight_norm_cell.bias.shape,
+                    dtype=module.conv.weight_norm_cell.bias.dtype))
         #     else:
             # module.conv.weight.set_data(initializer(
             #         Normal(mean=0, sigma=2 * math.sqrt(1 / (module.conv.kernel_size[0] * module.conv.in_channels))),
