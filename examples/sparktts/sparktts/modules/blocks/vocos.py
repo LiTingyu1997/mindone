@@ -16,6 +16,7 @@
 
 import mindspore as ms
 from mindspore import nn, mint, Parameter
+from mindspore.common.initializer import One, Zero, initializer, Constant, truncatedNormal
 
 from typing import Tuple
 from mindone.utils import WeightNorm
@@ -99,8 +100,18 @@ class AdaLayerNorm(nn.Cell):
         self.dim = embedding_dim
         self.scale = mint.nn.Linear(condition_dim, embedding_dim)
         self.shift = mint.nn.Linear(condition_dim, embedding_dim)
-        mint.nn.init.ones_(self.scale.weight)
-        mint.nn.init.zeros_(self.shift.weight)
+        self.scale.weight.set_data(
+                initializer(
+                    One(),
+                    shape=self.scale.weight.shape,
+                    dtype=self.scale.weight.dtype,
+                ))
+        self.shift.weight.set_data(
+                initializer(
+                    Zero(),
+                    shape=self.shift.weight.shape,
+                    dtype=self.shift.weight.dtype,
+                ))
 
     def construct(self, x: ms.Tensor, cond_embedding: ms.Tensor) -> ms.Tensor:
         scale = self.scale(cond_embedding)
@@ -330,8 +341,14 @@ class VocosBackbone(Backbone):
 
     def _init_weights(self, m):
         if isinstance(m, (nn.Conv1d, mint.nn.Linear)):
-            nn.init.trunc_normal_(m.weight, std=0.02)
-            nn.init.constant_(m.bias, 0)
+            m.weight.initializer(
+                truncatedNormal(sigma=0.02),
+                shape=m.weight.shape,
+                dtype=m.weight.dtype)
+            m.bias.initializer(
+                Constant(0),
+                shape=m.bias.shape,
+                dtype=m.bias.dtype)
 
     def construct(self, x: ms.Tensor, condition: ms.Tensor = None) -> ms.Tensor:
         x = self.embed(x)
