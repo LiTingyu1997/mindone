@@ -18,8 +18,9 @@ from collections import namedtuple
 from functools import wraps
 
 import mindspore as ms
-from mindspore import nn, mint
+from mindspore import nn, mint, Parameter
 import mindspore.mint.nn.functional as F
+from mindspore.common.initializer import Normal, initializer
 
 from einops import rearrange, repeat
 from packaging import version
@@ -177,10 +178,10 @@ class RMSNorm(nn.Cell):
     def __init__(self, dim, scale=True, dim_cond=None):
         super().__init__()
         self.cond = exists(dim_cond)
-        self.to_gamma_beta = nn.Linear(dim_cond, dim * 2) if self.cond else None
+        self.to_gamma_beta = mint.nn.Linear(dim_cond, dim * 2) if self.cond else None
 
         self.scale = dim**0.5
-        self.gamma = nn.Parameter(mint.ones(dim)) if scale else None
+        self.gamma = Parameter(mint.ones(dim)) if scale else None
 
     def construct(self, x, cond=None):
         gamma = default(self.gamma, 1)
@@ -228,7 +229,7 @@ def FeedForward(dim, mult=4, causal_conv=False):
         )
 
     return Sequential(
-        nn.Linear(dim, dim_inner * 2), GEGLU(), conv, nn.Linear(dim_inner, dim)
+        mint.nn.Linear(dim, dim_inner * 2), GEGLU(), conv, mint.nn.Linear(dim_inner, dim)
     )
 
 
@@ -254,9 +255,9 @@ class Attention(nn.Cell):
         dim_context = default(dim_context, dim)
 
         self.attend = Attend(causal=causal, dropout=dropout, use_flash=use_flash)
-        self.to_q = nn.Linear(dim, dim_inner, bias=False)
-        self.to_kv = nn.Linear(dim_context, dim_inner * 2, bias=False)
-        self.to_out = nn.Linear(dim_inner, dim, bias=False)
+        self.to_q = mint.nn.Linear(dim, dim_inner, bias=False)
+        self.to_kv = mint.nn.Linear(dim_context, dim_inner * 2, bias=False)
+        self.to_out = mint.nn.Linear(dim_inner, dim, bias=False)
 
     def construct(self, x, context=None, mask=None):
         h, has_context = self.heads, exists(context)
@@ -292,11 +293,16 @@ class PerceiverResampler(nn.Cell):
         dim_context = default(dim_context, dim)
 
         self.proj_context = (
-            nn.Linear(dim_context, dim) if dim_context != dim else nn.Identity()
+            mint.nn.Linear(dim_context, dim) if dim_context != dim else nn.Identity()
         )
 
-        self.latents = nn.Parameter(mint.randn(num_latents, dim))
-        nn.init.normal_(self.latents, std=0.02)
+        self.latents = Parameter(mint.randn(num_latents, dim))
+        self.latents.set_data(
+                initializer(
+                    Normal(sigma=0.02),
+                    shape=self.latents.shape,
+                    dtype=self.latents.dtype,
+                ))
 
         self.layers = nn.CellList([])
         for _ in range(depth):

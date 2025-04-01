@@ -18,6 +18,7 @@
 
 import mindspore as ms
 from mindspore import nn, mint
+from mindspore.common.initializer import initializer, Constant, TruncatedNormal
 from mindone.utils import WeightNorm
 
 
@@ -69,5 +70,15 @@ class ResidualUnit(nn.Cell):
 
 def init_weights(m):
     if isinstance(m, nn.Conv1d):
-        mint.nn.init.trunc_normal_(m.weight, std=0.02)
-        mint.nn.init.constant_(m.bias, 0)
+        m.weight.set_data(initializer(
+                TruncatedNormal(sigma=0.02),
+                shape=m.weight.shape,
+                dtype=m.weight.dtype
+                )
+            )
+        m.bias.set_data(initializer(
+                Constant(0),
+                shape=m.bias.shape,
+                dtype=m.bias.dtype
+                )
+            )

@@ -341,14 +341,14 @@ class VocosBackbone(Backbone):
 
     def _init_weights(self, m):
         if isinstance(m, (nn.Conv1d, mint.nn.Linear)):
-            m.weight.initializer(
+            m.weight.set_data(initializer(
                 TruncatedNormal(sigma=0.02),
                 shape=m.weight.shape,
-                dtype=m.weight.dtype)
-            m.bias.initializer(
+                dtype=m.weight.dtype))
+            m.bias.set_data(initializer(
                 Constant(0),
                 shape=m.bias.shape,
-                dtype=m.bias.dtype)
+                dtype=m.bias.dtype))
 
     def construct(self, x: ms.Tensor, condition: ms.Tensor = None) -> ms.Tensor:
         x = self.embed(x)
