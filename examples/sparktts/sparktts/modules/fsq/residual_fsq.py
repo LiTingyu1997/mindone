@@ -2,7 +2,7 @@ import random
 import mindspore as ms
 from mindspore import mint
 import mindspore.mint.nn.functional as F
-import mindspore.distributed as dist
+# import mindspore.distributed as dist
 
 from typing import List
 from mindspore import nn
