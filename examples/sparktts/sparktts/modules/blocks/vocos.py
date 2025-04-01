@@ -388,7 +388,7 @@ class VocosResNetBackbone(Backbone):
             nn.Conv1d(input_channels, dim, kernel_size=3, padding=1, pad_mode="pad", has_bias=True)
         )
         layer_scale_init_value = layer_scale_init_value or 1 / num_blocks / 3
-        self.resnet = nn.Sequential(
+        self.resnet = nn.SequentialCell(
             *[
                 ResBlock1(dim=dim, layer_scale_init_value=layer_scale_init_value)
                 for _ in range(num_blocks)

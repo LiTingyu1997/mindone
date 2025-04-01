@@ -65,7 +65,7 @@ class FactorizedVectorQuantize(nn.Cell):
             self.out_project = nn.Identity()
 
         self.codebook = nn.Embedding(self.codebook_size, self.codebook_dim)
-        self.register_buffer("cluster_size", mint.zeros(self.codebook_size))
+        self.cluster_size = mint.zeros(self.codebook_size)
 
     def construct(self, z: ms.tensor) -> Dict[str, Any]:
         """Quantized the input tensor using a fixed codebook and returns

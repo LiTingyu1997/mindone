@@ -46,7 +46,7 @@ class Decoder(nn.Cell):
 
         self.linear_pre = mint.nn.Linear(input_channels, vocos_dim)
         modules = [
-            nn.Sequential(
+            nn.SequentialCell(
                 SamplingBlock(
                     dim=vocos_dim,
                     groups=vocos_dim,
@@ -63,7 +63,7 @@ class Decoder(nn.Cell):
             for ratio in sample_ratios
         ]
 
-        self.downsample = nn.Sequential(*modules)
+        self.downsample = nn.SequentialCell(*modules)
 
         self.vocos_backbone = VocosBackbone(
             input_channels=vocos_dim,

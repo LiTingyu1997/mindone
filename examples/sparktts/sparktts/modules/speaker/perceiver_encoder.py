@@ -161,7 +161,7 @@ class Attend(nn.Cell):
 
 
 def Sequential(*mods):
-    return nn.Sequential(*filter(exists, mods))
+    return nn.SequentialCell(*filter(exists, mods))
 
 
 def exists(x):
@@ -222,7 +222,7 @@ def FeedForward(dim, mult=4, causal_conv=False):
 
     conv = None
     if causal_conv:
-        conv = nn.Sequential(
+        conv = nn.SequentialCell(
             Rearrange("b n d -> b d n"),
             CausalConv1d(dim_inner, dim_inner, 3),
             Rearrange("b d n -> b n d"),

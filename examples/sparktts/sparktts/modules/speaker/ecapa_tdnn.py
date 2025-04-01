@@ -138,7 +138,7 @@ class SE_Res2Block(nn.Cell):
 
     def __init__(self, channels, kernel_size, stride, padding, dilation, scale):
         super().__init__()
-        self.se_res2block = nn.Sequential(
+        self.se_res2block = nn.SequentialCell(
             Conv1dReluBn(channels, channels, kernel_size=1, stride=1, padding=0),
             Res2Conv1dReluBn(
                 channels, kernel_size, stride, padding, dilation, scale=scale

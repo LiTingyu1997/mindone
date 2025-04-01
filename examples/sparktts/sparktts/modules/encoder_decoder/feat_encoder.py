@@ -52,7 +52,7 @@ class Encoder(nn.Cell):
         )
 
         modules = [
-            nn.Sequential(
+            nn.SequentialCell(
                 SamplingBlock(
                     dim=vocos_dim,
                     groups=vocos_dim,
@@ -69,7 +69,7 @@ class Encoder(nn.Cell):
             for ratio in sample_ratios
         ]
 
-        self.downsample = nn.Sequential(*modules)
+        self.downsample = nn.SequentialCell(*modules)
 
         self.project = mint.nn.Linear(vocos_dim, out_channels)
 

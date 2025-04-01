@@ -95,7 +95,7 @@ class ResidualFSQ(nn.Cell):
 
         self.codebook_size = self.layers[0].codebook_size
 
-        self.register_buffer("scales", mint.stack(scales), persistent=False)
+        self.scales = mint.stack(scales)
 
         self.quantize_dropout = quantize_dropout and num_quantizers > 1
 

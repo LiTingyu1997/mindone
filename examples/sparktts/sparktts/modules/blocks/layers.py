@@ -53,7 +53,7 @@ class ResidualUnit(nn.Cell):
     def __init__(self, dim: int = 16, dilation: int = 1):
         super().__init__()
         pad = ((7 - 1) * dilation) // 2
-        self.block = nn.Sequential(
+        self.block = nn.SequentialCell(
             Snake1d(dim),
             WNConv1d(dim, dim, kernel_size=7, dilation=dilation, padding=pad),
             Snake1d(dim),

@@ -42,7 +42,7 @@ class SamplingBlock(nn.Cell):
         self.downsample_scale = downsample_scale
 
         if self.upsample_scale > 1:
-            self.de_conv_upsampler = nn.Sequential(
+            self.de_conv_upsampler = nn.SequentialCell(
                 nn.LeakyReLU(0.2),
                 nn.Conv1dTranspose(
                     dim,
@@ -56,7 +56,7 @@ class SamplingBlock(nn.Cell):
             )
 
         if self.downsample_scale > 1:
-            self.conv_downsampler = nn.Sequential(
+            self.conv_downsampler = nn.SequentialCell(
                 nn.LeakyReLU(0.2),
                 nn.Conv1d(
                     dim,

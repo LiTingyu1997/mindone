@@ -75,10 +75,10 @@ class FSQ(nn.Cell):
     ):
         super().__init__()
         _levels = ms.tensor(levels, dtype=ms.int32)
-        self.register_buffer("_levels", _levels, persistent=False)
+        self._levels = _levels
 
         _basis = mint.cumprod(ms.tensor([1] + levels[:-1]), dim=0, dtype=ms.int32)
-        self.register_buffer("_basis", _basis, persistent=False)
+        self_basis = _basis
 
         self.scale = scale
 
@@ -115,9 +115,7 @@ class FSQ(nn.Cell):
         if return_indices:
             self.codebook_size = self._levels.prod().item()
             implicit_codebook = self._indices_to_codes(mint.arange(self.codebook_size))
-            self.register_buffer(
-                "implicit_codebook", implicit_codebook, persistent=False
-            )
+            self.implicit_codebook = implicit_codebook
 
         self.allowed_dtypes = allowed_dtypes
         self.force_quantization_f32 = force_quantization_f32

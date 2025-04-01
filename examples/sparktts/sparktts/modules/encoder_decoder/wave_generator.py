@@ -35,7 +35,7 @@ class DecoderBlock(nn.Cell):
         stride: int = 1,
     ):
         super().__init__()
-        self.block = nn.Sequential(
+        self.block = nn.SequentialCell(
             Snake1d(input_dim),
             WNConvTranspose1d(
                 input_dim,
@@ -80,7 +80,7 @@ class WaveGenerator(nn.Cell):
             nn.Tanh(),
         ]
 
-        self.model = nn.Sequential(*layers)
+        self.model = nn.SequentialCell(*layers)
 
         self.apply(init_weights)
 
