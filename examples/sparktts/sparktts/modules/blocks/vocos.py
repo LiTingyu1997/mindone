@@ -50,7 +50,7 @@ class ConvNeXtBlock(nn.Cell):
         if condition_dim:
             self.norm = AdaLayerNorm(condition_dim, dim, eps=1e-6)
         else:
-            self.norm = nn.LayerNorm(dim, eps=1e-6)
+            self.norm = mint.nn.LayerNorm(dim, eps=1e-6)
         self.pwconv1 = mint.nn.Linear(
             dim, intermediate_dim
         )  # pointwise/1x1 convs, implemented with linear layers
@@ -312,7 +312,7 @@ class VocosBackbone(Backbone):
         if condition_dim:
             self.norm = AdaLayerNorm(condition_dim, dim, eps=1e-6)
         else:
-            self.norm = nn.LayerNorm(dim, eps=1e-6)
+            self.norm = mint.nn.LayerNorm(dim, eps=1e-6)
         layer_scale_init_value = layer_scale_init_value or 1 / num_layers
         self.convnext = nn.CellList(
             [
@@ -325,7 +325,7 @@ class VocosBackbone(Backbone):
                 for _ in range(num_layers)
             ]
         )
-        self.final_layer_norm = nn.LayerNorm(dim, eps=1e-6)
+        self.final_layer_norm = mint.nn.LayerNorm(dim, eps=1e-6)
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
