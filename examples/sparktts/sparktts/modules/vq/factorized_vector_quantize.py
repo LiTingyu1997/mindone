@@ -170,7 +170,7 @@ class FactorizedVectorQuantize(nn.Cell):
         b, d, t = latents.shape
         encodings = latents.reshape(b * t, d)
         #encodings = rearrange(latents, "b d t -> (b t) d")
-        codebook = self.codebook.weight
+        codebook = self.codebook.embedding_table
 
         # L2 normalize encodings and codebook
         encodings = F.normalize(encodings)
