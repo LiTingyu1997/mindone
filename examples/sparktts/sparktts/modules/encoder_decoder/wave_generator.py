@@ -43,6 +43,8 @@ class DecoderBlock(nn.Cell):
                 kernel_size=kernel_size,
                 stride=stride,
                 padding=(kernel_size - stride) // 2,
+                pad_mode="pad",
+                has_bias=True,
             ),
             ResidualUnit(output_dim, dilation=1),
             ResidualUnit(output_dim, dilation=3),
