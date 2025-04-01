@@ -469,7 +469,7 @@ class Wav2Vec2FeatureProjection(nn.Cell):
         super().__init__()
         self.layer_norm = mint.nn.LayerNorm(config.conv_dim[-1], eps=config.layer_norm_eps)
         self.projection = mint.nn.Linear(config.conv_dim[-1], config.hidden_size)
-        self.dropout = nn.Dropout(config.feat_proj_dropout)
+        self.dropout = mint.nn.Dropout(config.feat_proj_dropout)
 
     def construct(self, hidden_states):
         # non-projected hidden states are needed for quantization
@@ -646,7 +646,7 @@ WAV2VEC2_ATTENTION_CLASSES = {
 class Wav2Vec2FeedForward(nn.Cell):
     def __init__(self, config):
         super().__init__()
-        self.intermediate_dropout = nn.Dropout(config.activation_dropout)
+        self.intermediate_dropout = mint.nn.Dropout(config.activation_dropout)
 
         self.intermediate_dense = mint.nn.Linear(config.hidden_size, config.intermediate_size)
         if isinstance(config.hidden_act, str):
@@ -655,7 +655,7 @@ class Wav2Vec2FeedForward(nn.Cell):
             self.intermediate_act_fn = config.hidden_act
 
         self.output_dense = mint.nn.Linear(config.intermediate_size, config.hidden_size)
-        self.output_dropout = nn.Dropout(config.hidden_dropout)
+        self.output_dropout = mint.nn.Dropout(config.hidden_dropout)
 
     def construct(self, hidden_states):
         hidden_states = self.intermediate_dense(hidden_states)
@@ -677,7 +677,7 @@ class Wav2Vec2EncoderLayer(nn.Cell):
             is_decoder=False,
         )
 
-        self.dropout = nn.Dropout(config.hidden_dropout)
+        self.dropout = mint.nn.Dropout(config.hidden_dropout)
         self.layer_norm = mint.nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.feed_forward = Wav2Vec2FeedForward(config)
         self.final_layer_norm = mint.nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
@@ -711,7 +711,7 @@ class Wav2Vec2EncoderLayerStableLayerNorm(nn.Cell):
             dropout=config.attention_dropout,
             is_decoder=False,
         )
-        self.dropout = nn.Dropout(config.hidden_dropout)
+        self.dropout = mint.nn.Dropout(config.hidden_dropout)
         self.layer_norm = mint.nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.feed_forward = Wav2Vec2FeedForward(config)
         self.final_layer_norm = mint.nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
@@ -753,7 +753,7 @@ class Wav2Vec2Encoder(nn.Cell):
         self.config = config
         self.pos_conv_embed = Wav2Vec2PositionalConvEmbedding(config)
         self.layer_norm = mint.nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-        self.dropout = nn.Dropout(config.hidden_dropout)
+        self.dropout = mint.nn.Dropout(config.hidden_dropout)
         self.layers = nn.CellList([Wav2Vec2EncoderLayer(config) for _ in range(config.num_hidden_layers)])
         self.gradient_checkpointing = False
         self._use_flash_attention_2 = config._attn_implementation == "flash_attention_2"
@@ -838,7 +838,7 @@ class Wav2Vec2EncoderStableLayerNorm(nn.Cell):
         self.config = config
         self.pos_conv_embed = Wav2Vec2PositionalConvEmbedding(config)
         self.layer_norm = mint.nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-        self.dropout = nn.Dropout(config.hidden_dropout)
+        self.dropout = mint.nn.Dropout(config.hidden_dropout)
         self.layers = nn.CellList(
             [Wav2Vec2EncoderLayerStableLayerNorm(config) for _ in range(config.num_hidden_layers)]
         )
@@ -1529,7 +1529,7 @@ class Wav2Vec2ForPreTraining(Wav2Vec2PreTrainedModel):
     def __init__(self, config: Wav2Vec2Config):
         super().__init__(config)
         self.wav2vec2 = Wav2Vec2Model(config)
-        self.dropout_features = nn.Dropout(config.feat_quantizer_dropout)
+        self.dropout_features = mint.nn.Dropout(config.feat_quantizer_dropout)
 
         self.quantizer = Wav2Vec2GumbelVectorQuantizer(config)
 
@@ -1754,7 +1754,7 @@ class Wav2Vec2ForMaskedLM(Wav2Vec2PreTrainedModel):
         )
 
         self.wav2vec2 = Wav2Vec2Model(config)
-        self.dropout = nn.Dropout(config.final_dropout)
+        self.dropout = mint.nn.Dropout(config.final_dropout)
         self.lm_head = mint.nn.Linear(config.hidden_size, config.vocab_size)
 
         # Initialize weights and apply final processing
@@ -1794,7 +1794,7 @@ class Wav2Vec2ForCTC(Wav2Vec2PreTrainedModel):
         super().__init__(config)
 
         self.wav2vec2 = Wav2Vec2Model(config)
-        self.dropout = nn.Dropout(config.final_dropout)
+        self.dropout = mint.nn.Dropout(config.final_dropout)
 
         self.target_lang = target_lang
 
