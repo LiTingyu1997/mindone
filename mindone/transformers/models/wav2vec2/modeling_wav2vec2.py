@@ -1110,25 +1110,25 @@ class Wav2Vec2PreTrainedModel(MSPreTrainedModel):
                     shape=module.codevectors.shape,
                     dtype=module.codevectors.dtype))
         elif isinstance(module, Wav2Vec2PositionalConvEmbedding):
-            for name, _ in module.cells_and_names():
-                if "weight_norm_cell" in name:
-                    module.conv.weight_norm_cell.weight.set_data(initializer(
+        # for name, _ in module.cells_and_names():
+        #     if "weight_norm_cell" in name:
+            module.conv.weight_norm_cell.weight.set_data(initializer(
                     Normal(mean=0, sigma=2 * math.sqrt(1 / (module.conv.kernel_size[0] * module.conv.in_channels))),
                     shape=module.conv.weight.shape,
                     dtype=module.conv.weight.dtype))
-                    module.conv.weight_norm_cell.bias.set_data(initializer(
-                            Constant(0),
-                            shape=module.conv.bias.shape,
-                            dtype=module.conv.bias.dtype))
-                else:
-                    module.conv.weight.set_data(initializer(
-                            Normal(mean=0, sigma=2 * math.sqrt(1 / (module.conv.kernel_size[0] * module.conv.in_channels))),
-                            shape=module.conv.weight.shape,
-                            dtype=module.conv.weight.dtype))
-                    module.conv.bias.set_data(initializer(
-                            Constant(0),
-                            shape=module.conv.bias.shape,
-                            dtype=module.conv.bias.dtype))
+            module.conv.weight_norm_cell.bias.set_data(initializer(
+                    Constant(0),
+                    shape=module.conv.bias.shape,
+                    dtype=module.conv.bias.dtype))
+        #     else:
+            # module.conv.weight.set_data(initializer(
+            #         Normal(mean=0, sigma=2 * math.sqrt(1 / (module.conv.kernel_size[0] * module.conv.in_channels))),
+            #         shape=module.conv.weight.shape,
+            #         dtype=module.conv.weight.dtype))
+            # module.conv.bias.set_data(initializer(
+            #         Constant(0),
+            #         shape=module.conv.bias.shape,
+            #         dtype=module.conv.bias.dtype))
         elif isinstance(module, Wav2Vec2FeatureProjection):
             k = math.sqrt(1 / module.projection.in_features)
             module.projection.weight.set_data(initializer(
