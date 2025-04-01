@@ -68,7 +68,7 @@ class Attend(nn.Cell):
         self.cpu_config = self.config(True, True, True)
         self.cuda_config = None
 
-    def get_mask(self, n, device):
+    def get_mask(self, n):
         if exists(self.mask) and self.mask.shape[-1] >= n:
             return self.mask[:n, :n]
 
@@ -122,7 +122,7 @@ class Attend(nn.Cell):
         d - feature dimension
         """
 
-        n, device = q.shape[-2], q.device
+        n = q.shape[-2]
 
         scale = q.shape[-1] ** -0.5
 
@@ -144,7 +144,7 @@ class Attend(nn.Cell):
         # causal mask
 
         if self.causal:
-            causal_mask = self.get_mask(n, device)
+            causal_mask = self.get_mask(n)
             sim = sim.masked_fill(causal_mask, -mint.finfo(sim.dtype).max)
 
         # attention
@@ -333,7 +333,10 @@ class PerceiverResampler(nn.Cell):
         batch = x.shape[0]
 
         x = self.proj_context(x)
-        latents = latents.unsqueeze(0).repeat(batch, 1, 1)
+        if batch > 1:
+            latents = self.latents.unsqueeze(0).repeat((batch, 1, 1))
+        else:
+            latents = self.latents.unsqueeze(0)
         #latents = repeat(self.latents, "n d -> b n d", b=batch)
 
         for attn, ff in self.layers:
