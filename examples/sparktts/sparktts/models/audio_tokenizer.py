@@ -20,7 +20,7 @@ import numpy as np
 
 from pathlib import Path
 from typing import Any, Dict, Tuple
-from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2Model
+from mindone.transformers import Wav2Vec2FeatureExtractor, Wav2Vec2Model
 
 from sparktts.utils.file import load_config
 from sparktts.utils.audio import load_audio
