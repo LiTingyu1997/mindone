@@ -65,7 +65,7 @@ class WaveGenerator(nn.Cell):
         super().__init__()
 
         # Add first conv layer
-        layers = [WNConv1d(input_channel, channels, kernel_size=7, padding=3)]
+        layers = [WNConv1d(input_channel, channels, kernel_size=7, padding=3, pad_mode="pad", has_bias=True)]
 
         # Add upsampling + MRF blocks
         for i, (kernel_size, stride) in enumerate(zip(kernel_sizes, rates)):
@@ -76,7 +76,7 @@ class WaveGenerator(nn.Cell):
         # Add final conv layer
         layers += [
             Snake1d(output_dim),
-            WNConv1d(output_dim, d_out, kernel_size=7, padding=3),
+            WNConv1d(output_dim, d_out, kernel_size=7, padding=3, pad_mode="pad", has_bias=True),
             nn.Tanh(),
         ]
 
