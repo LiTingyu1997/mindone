@@ -233,21 +233,21 @@ class ResBlock1(nn.Cell):
             [
                 (
                     Parameter(
-                        layer_scale_init_value * mint.ones(dim, 1), requires_grad=True
+                        layer_scale_init_value * mint.ones((dim, 1)), requires_grad=True
                     )
                     if layer_scale_init_value is not None
                     else None
                 ),
                 (
                     Parameter(
-                        layer_scale_init_value * mint.ones(dim, 1), requires_grad=True
+                        layer_scale_init_value * mint.ones((dim, 1)), requires_grad=True
                     )
                     if layer_scale_init_value is not None
                     else None
                 ),
                 (
                     Parameter(
-                        layer_scale_init_value * mint.ones(dim, 1), requires_grad=True
+                        layer_scale_init_value * mint.ones((dim, 1)), requires_grad=True
                     )
                     if layer_scale_init_value is not None
                     else None
