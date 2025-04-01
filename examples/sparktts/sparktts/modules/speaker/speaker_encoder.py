@@ -68,17 +68,17 @@ class SpeakerEncoder(nn.Cell):
 
         self.project = mint.nn.Linear(latent_dim * token_num, out_dim)
 
-    def get_codes_from_indices(self, indices: torch.Tensor) -> torch.Tensor:
+    def get_codes_from_indices(self, indices: ms.Tensor) -> ms.Tensor:
         zq = self.quantizer.get_codes_from_indices(indices.transpose(1, 2))
         return zq.transpose(1, 2)
 
-    def get_indices(self, mels: torch.Tensor) -> torch.Tensor:
+    def get_indices(self, mels: ms.Tensor) -> ms.Tensor:
         mels = mels.transpose(1, 2)
         x = self.perceiver_sampler(mels).transpose(1, 2)
         zq, indices = self.quantizer(x)
         return indices
 
-    def forward(self, mels: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, mels: ms.Tensor) -> Tuple[ms.Tensor, ms.Tensor]:
         """
         Args:
             mels: (B, D_mel, T1)
@@ -97,14 +97,14 @@ class SpeakerEncoder(nn.Cell):
 
         return x_vector, d_vector
     
-    def tokenize(self, mels: torch.Tensor) -> torch.Tensor:
+    def tokenize(self, mels: ms.Tensor) -> ms.Tensor:
         """tokenize the input mel spectrogram"""
         _, features = self.speaker_encoder(mels, True)
         x = self.perceiver_sampler(features.transpose(1, 2)).transpose(1, 2)
         zq, indices = self.quantizer(x)
         return indices
     
-    def detokenize(self, indices: torch.Tensor) -> torch.Tensor:
+    def detokenize(self, indices: ms.Tensor) -> ms.Tensor:
         """detokenize the input indices to d-vector"""
         zq = self.quantizer.get_output_from_indices(indices.transpose(1, 2)).transpose(1, 2)
         x = zq.reshape(zq.shape[0], -1)
