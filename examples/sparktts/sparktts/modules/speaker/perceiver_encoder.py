@@ -57,7 +57,7 @@ class Attend(nn.Cell):
         self.attn_dropout = mint.nn.Dropout(dropout)
 
         self.causal = causal
-        self.register_buffer("mask", None, persistent=False)
+        self.mask = None
 
         self.use_flash = use_flash
 
@@ -74,7 +74,7 @@ class Attend(nn.Cell):
             return self.mask[:n, :n]
 
         mask = mint.ones((n, n), dtype=ms.bool_).triu(1)
-        self.register_buffer("mask", mask, persistent=False)
+        self.mask = mask
         return mask
 
     # def flash_attn(self, q, k, v, mask=None):
