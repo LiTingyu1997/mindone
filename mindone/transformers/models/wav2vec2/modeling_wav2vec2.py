@@ -359,7 +359,7 @@ class Wav2Vec2PositionalConvEmbedding(nn.Cell):
             config.hidden_size,
             kernel_size=config.num_conv_pos_embeddings,
             padding=config.num_conv_pos_embeddings // 2,
-            groups=config.num_conv_pos_embedding_groups,
+            group=config.num_conv_pos_embedding_groups,
             pad_mode="pad",
             has_bias=True
         )
