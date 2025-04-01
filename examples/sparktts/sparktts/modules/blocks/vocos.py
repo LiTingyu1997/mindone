@@ -16,7 +16,7 @@
 
 import mindspore as ms
 from mindspore import nn, mint, Parameter
-from mindspore.common.initializer import One, Zero, initializer, Constant, truncatedNormal
+from mindspore.common.initializer import One, Zero, initializer, Constant, TruncatedNormal
 
 from typing import Tuple
 from mindone.utils import WeightNorm
@@ -342,7 +342,7 @@ class VocosBackbone(Backbone):
     def _init_weights(self, m):
         if isinstance(m, (nn.Conv1d, mint.nn.Linear)):
             m.weight.initializer(
-                truncatedNormal(sigma=0.02),
+                TruncatedNormal(sigma=0.02),
                 shape=m.weight.shape,
                 dtype=m.weight.dtype)
             m.bias.initializer(
