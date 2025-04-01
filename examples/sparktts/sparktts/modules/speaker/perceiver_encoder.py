@@ -54,7 +54,7 @@ class Attend(nn.Cell):
     def __init__(self, dropout=0.0, causal=False, use_flash=False):
         super().__init__()
         self.dropout = dropout
-        self.attn_dropout = nn.Dropout(dropout)
+        self.attn_dropout = mint.nn.Dropout(dropout)
 
         self.causal = causal
         self.register_buffer("mask", None, persistent=False)
