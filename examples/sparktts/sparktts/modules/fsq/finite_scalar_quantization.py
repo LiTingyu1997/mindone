@@ -56,7 +56,7 @@ def unpack_one(t, ps, pattern):
 def round_ste(z: ms.Tensor) -> ms.Tensor:
     """Round with straight through gradients."""
     zhat = z.round()
-    return z + (zhat - z).detach()
+    return z + (zhat - z)
 
 
 # main class

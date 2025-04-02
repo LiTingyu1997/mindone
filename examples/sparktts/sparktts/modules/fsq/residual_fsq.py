@@ -9,7 +9,7 @@ from mindspore import nn
 
 # from torch.amp import autocast
 
-from einops import pack, unpack
+from einx import get_at
 
 from sparktts.modules.fsq.finite_scalar_quantization import FSQ
 
@@ -135,16 +135,16 @@ class ResidualFSQ(nn.Cell):
             mask, 0
         )  # have it fetch a dummy code to be masked out later
 
-        #all_codes = get_at("q [c] d, b n q -> q b n d", self.codebooks, indices)
-        _, _, d = self.codebooks.shape
-        # 扩展 indices 以匹配 codebooks 的维度
-        indices = indices.unsqueeze(-1).expand(-1, -1, -1, d)  # shape (b, n, q, d)
-        # 按码本 q 分组提取
-        all_codes = mint.gather(
-            self.codebooks.unsqueeze(0).unsqueeze(0),  # shape (1, 1, q, c, d)
-            dim=3,                                # 在 c 维度上索引
-            index=indices.permute(2, 0, 1, 3)     # shape (q, b, n, d)
-        )
+        all_codes = ms.tensor(get_at("q [c] d, b n q -> q b n d", self.codebooks.numpy(), indices.numpy()))
+        # _, _, d = self.codebooks.shape
+        # # 扩展 indices 以匹配 codebooks 的维度
+        # indices = indices.unsqueeze(-1).expand((-1, -1, -1, d))  # shape (b, n, q, d)
+        # # 按码本 q 分组提取
+        # all_codes = mint.gather(
+        #     self.codebooks.unsqueeze(0).unsqueeze(0),  # shape (1, 1, q, c, d)
+        #     dim=3,                                # 在 c 维度上索引
+        #     index=indices.permute(2, 0, 1, 3)     # shape (q, b, n, d)
+        # )
 
         # mask out any codes that were dropout-ed
 
@@ -152,7 +152,7 @@ class ResidualFSQ(nn.Cell):
 
         # scale the codes
 
-        scales = scales.unsqueeze(1).unsqueeze(1)
+        scales = self.scales.unsqueeze(1).unsqueeze(1)
         all_codes = all_codes * scales
 
         # if (accept_image_fmap = True) then return shape (quantize, batch, height, width, dimension)
@@ -222,29 +222,29 @@ class ResidualFSQ(nn.Cell):
         # go through the layers
 
         # with autocast("cuda", enabled=False):
-        #     for quantizer_index, (layer, scale) in enumerate(
-        #         zip(self.layers, self.scales)
-        #     ):
+        for quantizer_index, (layer, scale) in enumerate(
+            zip(self.layers, self.scales)
+        ):
 
-        #         if (
-        #             should_quantize_dropout
-        #             and quantizer_index > rand_quantize_dropout_index
-        #         ):
-        #             all_indices.append(null_indices)
-        #             continue
+            # if (
+            #     should_quantize_dropout
+            #     and quantizer_index > rand_quantize_dropout_index
+            # ):
+            #     all_indices.append(null_indices)
+            #     continue
 
-        #         quantized, indices = layer(residual / scale)
+            quantized, indices = layer(residual / scale)
 
-        #         quantized = quantized * scale
+            quantized = quantized * scale
 
-        #         residual = residual - quantized.detach()
-        #         quantized_out = quantized_out + quantized
+            residual = residual - quantized
+            quantized_out = quantized_out + quantized
 
-        #         all_indices.append(indices)
+            all_indices.append(indices)
 
         # project out, if needed
 
-        quantized_out = self.project_out(quantized_out)
+        quantized_out = self.project_out(ms.tensor(quantized_out))
 
         # stack all indices
 

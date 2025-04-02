@@ -116,7 +116,7 @@ class AdaLayerNorm(nn.Cell):
     def construct(self, x: ms.Tensor, cond_embedding: ms.Tensor) -> ms.Tensor:
         scale = self.scale(cond_embedding)
         shift = self.shift(cond_embedding)
-        x = nn.functional.layer_norm(x, (self.dim,), eps=self.eps)
+        x = mint.nn.functional.layer_norm(x, (self.dim,), eps=self.eps)
         x = x * scale.unsqueeze(1) + shift.unsqueeze(1)
         return x
 
@@ -229,8 +229,7 @@ class ResBlock1(nn.Cell):
             ]
         )
 
-        self.gamma = ParameterList(
-            [
+        self.gamma = [
                 (
                     Parameter(
                         layer_scale_init_value * mint.ones((dim, 1)), requires_grad=True
@@ -253,7 +252,6 @@ class ResBlock1(nn.Cell):
                     else None
                 ),
             ]
-        )
 
     def construct(self, x: ms.Tensor) -> ms.Tensor:
         for c1, c2, gamma in zip(self.convs1, self.convs2, self.gamma):

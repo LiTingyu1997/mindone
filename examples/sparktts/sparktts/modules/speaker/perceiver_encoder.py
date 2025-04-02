@@ -149,7 +149,7 @@ class Attend(nn.Cell):
 
         # attention
 
-        attn = sim.softmax(dim=-1)
+        attn = sim.softmax(axis=-1)
         attn = self.attn_dropout(attn)
 
         # aggregate values
