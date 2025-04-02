@@ -109,12 +109,12 @@ class FactorizedVectorQuantize(nn.Cell):
 
         if self.training:
             commit_loss = (
-                F.mse_loss(z_e, z_q.detach(), reduction="none").mean([1, 2])
+                F.mse_loss(z_e, z_q, reduction="none").mean([1, 2])
                 * self.commitment
             )
 
             codebook_loss = (
-                F.mse_loss(z_q, z_e.detach(), reduction="none").mean([1, 2])
+                F.mse_loss(z_q, z_e, reduction="none").mean([1, 2])
                 * self.codebook_loss_weight
             )
 
@@ -123,7 +123,7 @@ class FactorizedVectorQuantize(nn.Cell):
             codebook_loss = mint.zeros(0)
 
         z_q = (
-            z_e + (z_q - z_e).detach()
+            z_e + (z_q - z_e)
         )  # noop in forward pass, straight-through gradient estimator in backward pass
 
         z_q = self.out_project(z_q)
