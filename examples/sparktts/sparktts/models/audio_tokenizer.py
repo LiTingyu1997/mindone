@@ -140,7 +140,7 @@ class BiCodecTokenizer:
         """
         global_tokens = global_tokens.unsqueeze(1)
         wav_rec = self.model.detokenize(semantic_tokens, global_tokens)
-        return wav_rec.detach().squeeze().cpu().numpy()
+        return wav_rec.squeeze().numpy()
 
 
 # test
