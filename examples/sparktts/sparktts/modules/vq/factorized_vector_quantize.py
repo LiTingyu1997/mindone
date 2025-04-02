@@ -168,7 +168,7 @@ class FactorizedVectorQuantize(nn.Cell):
 
     def decode_latents(self, latents):
         b, d, t = latents.shape
-        encodings = latents.reshape(b * t, d)
+        encodings = latents.permute(0, 2, 1).reshape(b * t, d)
         #encodings = rearrange(latents, "b d t -> (b t) d")
         codebook = self.codebook.embedding_table
 

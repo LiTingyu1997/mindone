@@ -277,8 +277,9 @@ class Attention(nn.Cell):
         #q, k, v = map(lambda t: rearrange(t, "b n (h d) -> b h n d", h=h), (q, k, v))
 
         out = self.attend(q, k, v, mask=mask)
+
         b_out, h_out, n_out, d_out = out.shape
-        out = out.reshape(b_out, n_out, h_out * d_out)
+        out = out.permute(0, 2, 1, 3).reshape(b_out, n_out, h_out * d_out)
         return self.to_out(out)
 
 
