@@ -7,8 +7,6 @@ import mindspore.mint.nn.functional as F
 from typing import List
 from mindspore import nn
 
-# from torch.amp import autocast
-
 from einx import get_at
 
 from sparktts.modules.fsq.finite_scalar_quantization import FSQ
@@ -24,27 +22,6 @@ def first(l):
 
 def default(val, d):
     return val if exists(val) else d
-
-
-def round_up_multiple(num, mult):
-    return ceil(num / mult) * mult
-
-
-# distributed helpers
-
-
-# def is_distributed():
-#     return dist.is_initialized() and dist.get_world_size() > 1
-
-
-# def get_maybe_sync_seed(max_size=10_000):
-#     rand_int = mint.randint(0, max_size, ())
-
-#     if is_distributed():
-#         dist.all_reduce(rand_int)
-
-#     return rand_int.item()
-
 
 class ResidualFSQ(nn.Cell):
     """Follows Algorithm 1. in https://arxiv.org/pdf/2107.03312.pdf"""
@@ -136,15 +113,6 @@ class ResidualFSQ(nn.Cell):
         )  # have it fetch a dummy code to be masked out later
 
         all_codes = ms.tensor(get_at("q [c] d, b n q -> q b n d", self.codebooks.numpy(), indices.numpy()))
-        # _, _, d = self.codebooks.shape
-        # # 扩展 indices 以匹配 codebooks 的维度
-        # indices = indices.unsqueeze(-1).expand((-1, -1, -1, d))  # shape (b, n, q, d)
-        # # 按码本 q 分组提取
-        # all_codes = mint.gather(
-        #     self.codebooks.unsqueeze(0).unsqueeze(0),  # shape (1, 1, q, c, d)
-        #     dim=3,                                # 在 c 维度上索引
-        #     index=indices.permute(2, 0, 1, 3)     # shape (q, b, n, d)
-        # )
 
         # mask out any codes that were dropout-ed
 
@@ -164,7 +132,7 @@ class ResidualFSQ(nn.Cell):
     def get_output_from_indices(self, indices):
         codes = self.get_codes_from_indices(indices)
         codes_summed = codes.sum(dim=0)
-        #codes_summed = reduce(codes, "q ... -> ...", "sum")
+
         return self.project_out(codes_summed)
 
     def construct(self, x, return_all_codes=False, rand_quantize_dropout_fixed_seed=None):
@@ -189,49 +157,9 @@ class ResidualFSQ(nn.Cell):
 
         all_indices = []
 
-        should_quantize_dropout = self.training and self.quantize_dropout
-
-        # sample a layer index at which to dropout further residual quantization
-        # also prepare null indices
-
-        # if should_quantize_dropout:
-
-        #     # check if seed is manually passed in
-
-        #     # if not exists(rand_quantize_dropout_fixed_seed):
-        #     #     rand_quantize_dropout_fixed_seed = get_maybe_sync_seed(device)
-
-        #     # rand = random.Random(rand_quantize_dropout_fixed_seed)
-
-        #     rand_quantize_dropout_index = rand.randrange(
-        #         self.quantize_dropout_cutoff_index, num_quant
-        #     )
-
-        #     if quant_dropout_multiple_of != 1:
-        #         rand_quantize_dropout_index = (
-        #             round_up_multiple(
-        #                 rand_quantize_dropout_index + 1, quant_dropout_multiple_of
-        #             )
-        #             - 1
-        #         )
-
-        #     null_indices = mint.full(
-        #         x.shape[:2], -1.0, dtype=ms.int64
-        #     )
-
-        # go through the layers
-
-        # with autocast("cuda", enabled=False):
         for quantizer_index, (layer, scale) in enumerate(
             zip(self.layers, self.scales)
         ):
-
-            # if (
-            #     should_quantize_dropout
-            #     and quantizer_index > rand_quantize_dropout_index
-            # ):
-            #     all_indices.append(null_indices)
-            #     continue
 
             quantized, indices = layer(residual / scale)
 

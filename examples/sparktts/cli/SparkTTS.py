@@ -186,18 +186,16 @@ class SparkTTS:
         generated_ids = self.model.generate(
             **model_inputs,
             max_new_tokens=3000,
-            do_sample=True,
-            top_k=top_k,
-            top_p=top_p,
-            temperature=temperature,
+            do_sample=False,
             use_cache=False,  # TODO: remove this when qwen2 in mindone.transformers supports cache
         )
 
         # Trim the output tokens to remove the input tokens
-        generated_ids = [
-            output_ids[len(input_ids) :]
-            for input_ids, output_ids in zip(model_inputs["input_ids"], generated_ids)
-        ]
+        # removed by mindone.transformers.generation.utils.py
+        # generated_ids = [
+        #     output_ids[len(input_ids) :]
+        #     for input_ids, output_ids in zip(model_inputs["input_ids"], generated_ids)
+        # ]
 
         # Decode the generated tokens into text
         predicts = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
