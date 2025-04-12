@@ -6,6 +6,8 @@ from ...utils import _LazyModule
 
 _dummy_objects = {}
 _import_structure = {}
+_import_structure["modeling_audioldm2"] = ["AudioLDM2ProjectionModel", "AudioLDM2UNet2DConditionModel"]
+_import_structure["pipeline_audioldm2"] = ["AudioLDM2Pipeline"]
 
 
 if TYPE_CHECKING:
