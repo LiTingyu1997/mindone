@@ -336,7 +336,7 @@ class AudioLDM2UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoad
         # input
         conv_in_padding = (conv_in_kernel - 1) // 2
         self.conv_in = nn.Conv2d(
-            in_channels, block_out_channels[0], kernel_size=conv_in_kernel, padding=conv_in_padding
+            in_channels, block_out_channels[0], kernel_size=conv_in_kernel, pad_mode="pad", padding=conv_in_padding, has_bias=True
         )
 
         # time
@@ -527,7 +527,7 @@ class AudioLDM2UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoad
 
         conv_out_padding = (conv_out_kernel - 1) // 2
         self.conv_out = nn.Conv2d(
-            block_out_channels[0], out_channels, kernel_size=conv_out_kernel, padding=conv_out_padding
+            block_out_channels[0], out_channels, kernel_size=conv_out_kernel, pad_mode="pad", padding=conv_out_padding, has_bias=True
         )
 
     @property
