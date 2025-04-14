@@ -52,8 +52,8 @@ def add_special_tokens(hidden_states, attention_mask, sos_token, eos_token):
         attention_mask = mint.concat([new_attn_mask_step, attention_mask, new_attn_mask_step], dim=-1)
 
     # Add the SOS / EOS tokens at the start / end of the sequence respectively
-    sos_token = sos_token.expand(batch_size, 1, -1)
-    eos_token = eos_token.expand(batch_size, 1, -1)
+    sos_token = sos_token.expand((batch_size, 1, -1))
+    eos_token = eos_token.expand((batch_size, 1, -1))
     hidden_states = mint.concat([sos_token, hidden_states, eos_token], dim=1)
     return hidden_states, attention_mask
 
