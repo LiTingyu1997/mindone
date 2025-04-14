@@ -390,8 +390,8 @@ class AudioLDM2UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoad
         else:
             self.time_embed_act = get_activation(time_embedding_act_fn)
 
-        self.down_blocks = nn.CellList([])
-        self.up_blocks = nn.CellList([])
+        down_blocks = []
+        up_blocks = []
 
         if isinstance(only_cross_attention, bool):
             only_cross_attention = [only_cross_attention] * len(down_block_types)
@@ -442,7 +442,8 @@ class AudioLDM2UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoad
                 upcast_attention=upcast_attention,
                 resnet_time_scale_shift=resnet_time_scale_shift,
             )
-            self.down_blocks.append(down_block)
+            down_blocks.append(down_block)
+        self.down_blocks = nn.CellList(down_blocks)
 
         # mid
         if mid_block_type == "UNetMidBlock2DCrossAttn":
@@ -510,9 +511,9 @@ class AudioLDM2UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoad
                 upcast_attention=upcast_attention,
                 resnet_time_scale_shift=resnet_time_scale_shift,
             )
-            self.up_blocks.append(up_block)
+            up_blocks.append(up_block)
             prev_output_channel = output_channel
-
+        self.up_blocks = nn.CellList(up_blocks)
         # out
         if norm_num_groups is not None:
             self.conv_norm_out = nn.GroupNorm(
