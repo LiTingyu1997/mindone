@@ -409,9 +409,9 @@ class AudioLDM2Pipeline(DiffusionPipeline):
                     truncation=True,
                     return_tensors="np",
                 )
-                text_input_ids = text_inputs.input_ids
-                attention_mask = text_inputs.attention_mask
-                untruncated_ids = tokenizer(prompt, padding="longest", return_tensors="np").input_ids
+                text_input_ids = mindspore.tensor(text_inputs.input_ids)
+                attention_mask = mindspore.tensor(text_inputs.attention_mask)
+                untruncated_ids = mindspore.tensor(tokenizer(prompt, padding="longest", return_tensors="np").input_ids)
 
                 if untruncated_ids.shape[-1] >= text_input_ids.shape[-1] and not mint.equal(
                     text_input_ids, untruncated_ids
