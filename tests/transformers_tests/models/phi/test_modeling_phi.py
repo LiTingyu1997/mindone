@@ -116,6 +116,7 @@ class PhiModelTester:
 
     def get_config(self):
         return PhiConfig(
+            _attn_implementation="eager",
             vocab_size=self.vocab_size,
             hidden_size=self.hidden_size,
             num_hidden_layers=self.num_hidden_layers,
