@@ -139,11 +139,11 @@ model_tester = Phi3ModelTester()
 ) = model_tester.prepare_config_and_inputs()
 
 
-PHI3_CASES = [
+PHI_CASES = [
     [
-        "Phi3Model",
-        "transformers.Phi3Model",
-        "mindone.transformers.Phi3Model",
+        "PhiModel",
+        "transformers.PhiModel",
+        "mindone.transformers.PhiModel",
         (config,),
         {},
         (input_ids,),
@@ -168,7 +168,7 @@ PHI3_CASES = [
         + [
             mode,
         ]
-        for case in PHI3_CASES
+        for case in PHI_CASES
         for dtype in DTYPE_AND_THRESHOLDS.keys()
         for mode in MODES
     ],
