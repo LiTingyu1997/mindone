@@ -25,7 +25,7 @@ from tests.modeling_test_utils import (
     generalized_parse_args,
     get_modules,
 )
-from tests.transformers_tests.models.modeling_common import ids_numpy
+from tests.models.modeling_common import ids_numpy
 
 DTYPE_AND_THRESHOLDS = {"fp32": 5e-4, "fp16": 5e-3, "bf16": 5e-3}
 MODES = [0, 1]
@@ -139,11 +139,11 @@ model_tester = Phi3ModelTester()
 ) = model_tester.prepare_config_and_inputs()
 
 
-PHI_CASES = [
+PHI3_CASES = [
     [
-        "PhiModel",
-        "transformers.PhiModel",
-        "mindone.transformers.PhiModel",
+        "Phi3Model",
+        "transformers.Phi3Model",
+        "mindway.transformers.Phi3Model",
         (config,),
         {},
         (input_ids,),
@@ -168,7 +168,7 @@ PHI_CASES = [
         + [
             mode,
         ]
-        for case in PHI_CASES
+        for case in PHI3_CASES
         for dtype in DTYPE_AND_THRESHOLDS.keys()
         for mode in MODES
     ],
