@@ -14,6 +14,7 @@ from . import (
     glpn,
     gpt2,
     hiera,
+    hubert,
     ijepa,
     imagegpt,
     levit,

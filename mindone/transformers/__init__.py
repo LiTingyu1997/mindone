@@ -120,6 +120,12 @@ from .models.hiera import (
     HieraModel,
     HieraPreTrainedModel,
 )
+from .models.hubert import(
+    HubertForCTC,
+    HubertForSequenceClassification,
+    HubertModel,
+    HubertPreTrainedModel,
+)
 from .models.ijepa import IJepaForImageClassification, IJepaModel, IJepaPreTrainedModel
 from .models.imagegpt import (
     ImageGPTFeatureExtractor,
